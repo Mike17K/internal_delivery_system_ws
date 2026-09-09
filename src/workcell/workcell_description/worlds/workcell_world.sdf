@@ -1,0 +1,173 @@
+<?xml version="1.0"?>
+
+<sdf version="1.10">
+
+  <world name="workcell_world">
+
+
+    <!-- ================================================= -->
+    <!-- PHYSICS                                           -->
+    <!-- ================================================= -->
+
+    <physics name="default_physics" type="ode">
+
+      <max_step_size>0.001</max_step_size>
+
+      <real_time_factor>1.0</real_time_factor>
+
+      <real_time_update_rate>1000</real_time_update_rate>
+
+    </physics>
+
+
+    <!-- ================================================= -->
+    <!-- GRAVITY                                           -->
+    <!-- ================================================= -->
+
+    <gravity>0 0 -9.81</gravity>
+
+
+    <!-- ================================================= -->
+    <!-- FLOOR                                             -->
+    <!-- ================================================= -->
+
+    <include>
+
+      <uri>model://floor</uri>
+
+      <name>floor</name>
+
+      <pose>0 0 0 0 0 0</pose>
+
+    </include>
+
+
+    <!-- ================================================= -->
+    <!-- BACK WALL                                         -->
+    <!-- ================================================= -->
+
+    <include>
+
+      <uri>model://wall</uri>
+
+      <name>back_wall</name>
+
+      <pose>0 5 1.25 0 0 0</pose>
+
+    </include>
+
+
+    <!-- ================================================= -->
+    <!-- LEFT WALL                                         -->
+    <!-- ================================================= -->
+
+    <include>
+
+      <uri>model://wall</uri>
+
+      <name>left_wall</name>
+
+      <pose>-5 0 1.25 0 0 1.5708</pose>
+
+    </include>
+
+
+    <!-- ================================================= -->
+    <!-- RIGHT WALL                                        -->
+    <!-- ================================================= -->
+
+    <include>
+
+      <uri>model://wall</uri>
+
+      <name>right_wall</name>
+
+      <pose>5 0 1.25 0 0 1.5708</pose>
+
+    </include>
+
+
+    <!-- ================================================= -->
+    <!-- TABLE                                             -->
+    <!-- ================================================= -->
+
+    <include>
+
+      <uri>model://table</uri>
+
+      <name>work_table</name>
+
+      <pose>0 1.5 0 0 0 0</pose>
+
+    </include>
+
+    <!-- ================================================= -->
+    <!-- PALLET                                            -->
+    <!-- ================================================= -->
+    <include>
+
+      <uri>model://pallet</uri>
+
+      <name>pallet_1</name>
+
+      <pose>2.5 2.5 0 0 0 0</pose>
+
+    </include>
+
+    <include>
+
+      <uri>model://pallet</uri>
+
+      <name>pallet_2</name>
+
+      <pose>-2.5 2.5 0 0 0 1.5708</pose>
+
+    </include>
+
+    <!-- ================================================= -->
+    <!-- SHELF                                             -->
+    <!-- ================================================= -->
+    <include>
+
+      <uri>model://shelf</uri>
+
+      <name>shelf_1</name>
+
+      <pose>3.5 3.5 0 0 0 0</pose>
+
+    </include>
+
+    <include>
+
+      <uri>model://shelf</uri>
+
+      <name>shelf_2</name>
+
+      <pose>-3.5 3.5 0 0 0 0</pose>
+
+    </include>
+
+    <!-- ================================================= -->
+    <!-- SUN                                               -->
+    <!-- ================================================= -->
+
+    <light
+      name="sun"
+      type="directional">
+
+      <cast_shadows>true</cast_shadows>
+
+      <pose>0 0 10 0 0 0</pose>
+
+      <diffuse>1 1 1 1</diffuse>
+
+      <specular>0.2 0.2 0.2 1</specular>
+
+      <direction>-0.5 0.5 -1</direction>
+
+    </light>
+
+
+  </world>
+
+</sdf>

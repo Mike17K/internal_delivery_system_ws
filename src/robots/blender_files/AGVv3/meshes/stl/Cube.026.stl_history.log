@@ -1,0 +1,5 @@
+Instantiated with filepath=None->None, scale=[1.0, 1.0, 1.0], mesh=<bpy_struct, Mesh("Cube.026") at 0x75b8eeebc120>, meshname=Cube.026, material=None, mesh_orientation=None
+manually setting mesh_object by value of <class '_bpy_types.Mesh'>
+apply_scale [1.0, 1.0, 1.0]
+->trying export of <bpy_struct, Mesh("Cube.001") at 0x75b8a7140b88> to /home/kaipis/Desktop/projects/robotics/internal_delivery_system_ws/src/robots/blender_files/AGVv3/meshes/stl/Cube.026.stl
+->wrote stl to /home/kaipis/Desktop/projects/robotics/internal_delivery_system_ws/src/robots/blender_files/AGVv3/meshes/stl/Cube.026.stl from _bpy_types.Mesh

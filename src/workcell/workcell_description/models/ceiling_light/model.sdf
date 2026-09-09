@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+
+<sdf version="1.10">
+
+  <model name="ceiling_light">
+
+    <static>true</static>
+
+    <link name="fixture_link">
+
+      <!-- ========================== -->
+      <!-- FIXTURE HOUSING             -->
+      <!-- ========================== -->
+
+      <visual name="fixture_visual">
+        <geometry>
+          <box>
+            <size>0.6 0.6 0.05</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.9 0.9 0.85 1</ambient>
+          <diffuse>0.9 0.9 0.85 1</diffuse>
+          <emissive>0.6 0.6 0.55 1</emissive>
+        </material>
+      </visual>
+
+
+      <!-- ========================== -->
+      <!-- POINT LIGHT SOURCE          -->
+      <!-- ========================== -->
+
+      <light name="fixture_light" type="point">
+
+        <pose>0 0 -0.05 0 0 0</pose>
+
+        <diffuse>1 1 0.95 1</diffuse>
+
+        <specular>0.4 0.4 0.4 1</specular>
+
+        <attenuation>
+          <range>8</range>
+          <constant>0.4</constant>
+          <linear>0.15</linear>
+          <quadratic>0.02</quadratic>
+        </attenuation>
+
+        <cast_shadows>false</cast_shadows>
+
+      </light>
+
+    </link>
+
+  </model>
+
+</sdf>

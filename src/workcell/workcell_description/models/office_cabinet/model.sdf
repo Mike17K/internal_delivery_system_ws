@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+
+<sdf version="1.10">
+
+  <model name="office_cabinet">
+
+    <static>true</static>
+
+    <link name="cabinet_link">
+      <pose>0.0 -0.225 0.0 0 0 0</pose>
+
+      <collision name="body_collision">
+        <pose>0 0 0.9 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.9 0.45 1.8</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <visual name="body_visual">
+        <pose>0 0 0.9 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.9 0.45 1.8</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.3 0.35 0.4 1</ambient>
+          <diffuse>0.3 0.35 0.4 1</diffuse>
+          <specular>0.3 0.3 0.3 1</specular>
+        </material>
+      </visual>
+
+      <!-- Drawer handles, purely cosmetic -->
+
+      <visual name="handle_1_visual">
+        <pose>0 -0.225 0.6 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.3 0.02 0.04</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.05 0.05 0.05 1</ambient>
+          <diffuse>0.05 0.05 0.05 1</diffuse>
+        </material>
+      </visual>
+
+      <visual name="handle_2_visual">
+        <pose>0 -0.225 1.2 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.3 0.02 0.04</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.05 0.05 0.05 1</ambient>
+          <diffuse>0.05 0.05 0.05 1</diffuse>
+        </material>
+      </visual>
+
+    </link>
+
+  </model>
+
+</sdf>

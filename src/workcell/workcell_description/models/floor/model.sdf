@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+
+<sdf version="1.10">
+
+  <model name="floor">
+
+    <static>true</static>
+
+    <link name="floor_link">
+
+      <collision name="collision">
+
+        <geometry>
+
+          <box>
+            <size>20 20 0.1</size>
+          </box>
+
+        </geometry>
+
+        <pose>0 0 -0.05 0 0 0</pose>
+
+      </collision>
+
+
+      <visual name="visual">
+
+        <geometry>
+
+          <box>
+            <size>20 20 0.1</size>
+          </box>
+
+        </geometry>
+
+        <pose>0 0 -0.05 0 0 0</pose>
+
+        <material>
+
+          <ambient>0.4 0.4 0.4 1</ambient>
+
+          <diffuse>0.4 0.4 0.4 1</diffuse>
+
+          <specular>0.1 0.1 0.1 1</specular>
+
+        </material>
+
+      </visual>
+
+    </link>
+
+  </model>
+
+</sdf>

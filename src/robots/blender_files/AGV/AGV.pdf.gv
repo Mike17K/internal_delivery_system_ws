@@ -1,0 +1,12 @@
+digraph G {
+esep=10;
+sep=10;
+nodesep=0.5;
+node [shape=box];
+"MainBody_link" [label="MainBody_link"];
+"WeelRight_link" [label="WeelRight_link"];
+"WeelLeft_link" [label="WeelLeft_link"];
+node [shape=ellipse, color=orange, fontcolor=black];
+"MainBody_link" -> "WeelLeft_link.001_joint" [label="xyz: 0.0 0.0 0.0 \nrpy: 0.0 0.0 0.0 \naxis: 0.0 0.0 1.0 \ntype: continuous "] "WeelLeft_link.001_joint" -> "WeelRight_link"
+"MainBody_link" -> "WeelLeft_link_joint" [label="xyz: 0.0 0.0 0.0 \nrpy: 0.0 0.0 0.0 \naxis: 0.0 0.0 1.0 \ntype: continuous "] "WeelLeft_link_joint" -> "WeelLeft_link"
+}

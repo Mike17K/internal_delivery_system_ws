@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+
+<sdf version="1.10">
+
+  <model name="wall">
+
+    <!-- The wall does not move -->
+    <static>true</static>
+
+    <link name="wall_link">
+
+      <!-- ========================== -->
+      <!-- PHYSICAL COLLISION          -->
+      <!-- ========================== -->
+
+      <collision name="collision">
+
+        <geometry>
+          <box>
+            <size>10 0.2 2.5</size>
+          </box>
+        </geometry>
+
+      </collision>
+
+
+      <!-- ========================== -->
+      <!-- VISUAL                      -->
+      <!-- ========================== -->
+
+      <visual name="visual">
+
+        <geometry>
+          <box>
+            <size>10 0.2 2.5</size>
+          </box>
+        </geometry>
+
+        <material>
+
+          <ambient>0.7 0.7 0.7 1</ambient>
+
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+
+          <specular>0.2 0.2 0.2 1</specular>
+
+        </material>
+
+      </visual>
+
+    </link>
+
+  </model>
+
+</sdf>

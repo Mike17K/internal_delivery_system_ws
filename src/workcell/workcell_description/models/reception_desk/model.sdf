@@ -1,0 +1,89 @@
+<?xml version="1.0"?>
+
+<sdf version="1.10">
+
+  <model name="reception_desk">
+
+    <static>true</static>
+
+    <link name="reception_link">
+
+      <!-- ========================== -->
+      <!-- FRONT COUNTER               -->
+      <!-- ========================== -->
+
+      <collision name="front_collision">
+        <pose>0 0 0.55 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>2.2 0.6 1.1</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <visual name="front_visual">
+        <pose>0 0 0.55 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>2.2 0.6 1.1</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.45 0.3 0.2 1</ambient>
+          <diffuse>0.45 0.3 0.2 1</diffuse>
+          <specular>0.2 0.2 0.2 1</specular>
+        </material>
+      </visual>
+
+
+      <!-- ========================== -->
+      <!-- SIDE RETURN                 -->
+      <!-- ========================== -->
+
+      <collision name="return_collision">
+        <pose>-1.0 -0.9 0.55 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.6 1.2 1.1</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <visual name="return_visual">
+        <pose>-1.0 -0.9 0.55 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.6 1.2 1.1</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.45 0.3 0.2 1</ambient>
+          <diffuse>0.45 0.3 0.2 1</diffuse>
+          <specular>0.2 0.2 0.2 1</specular>
+        </material>
+      </visual>
+
+
+      <!-- ========================== -->
+      <!-- NAMEPLATE SIGN              -->
+      <!-- ========================== -->
+
+      <visual name="nameplate_visual">
+        <pose>0 0.05 1.5 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.4 0.05 0.35</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.05 0.05 0.05 1</ambient>
+          <diffuse>0.05 0.05 0.05 1</diffuse>
+          <emissive>0.1 0.4 0.5 1</emissive>
+        </material>
+      </visual>
+
+    </link>
+
+  </model>
+
+</sdf>

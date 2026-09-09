@@ -1,0 +1,76 @@
+<robot name="AGV_S" version="1.0">
+  <joint name="LWeel_link_joint" type="continuous">
+    <limit lower="0.00000" upper="0.00000" effort="0.00000" velocity="0.00000"/>
+    <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.10422 0.05000"/>
+    <parent link="Body_link"/>
+    <child link="LWeel_link"/>
+    <axis xyz="0.00000 0.00000 1.00000"/>
+  </joint>
+  <joint name="RWeel_link_joint" type="continuous">
+    <limit lower="0.00000" upper="0.00000" effort="0.00000" velocity="0.00000"/>
+    <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 -0.10000 0.05000"/>
+    <parent link="Body_link"/>
+    <child link="RWeel_link"/>
+    <axis xyz="0.00000 0.00000 1.00000"/>
+  </joint>
+  <link name="Body_link">
+    <collision name="Body_collision">
+      <origin rpy="0.00000 0.00000 0.00000" xyz="-0.00000 0.00000 0.07000"/>
+      <geometry>
+        <box size="0.35073 0.25052 0.10021"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <inertia ixx="0.06067" ixy="0.00000" ixz="0.00000" iyy="0.11088" iyz="0.00000" izz="0.15481"/>
+      <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+      <mass value="10.00000"/>
+    </inertial>
+    <visual name="Body">
+      <material name="None"/>
+      <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+      <geometry>
+        <mesh filename="../meshes/stl/Cube.stl" scale="1 1 1"/>
+      </geometry>
+    </visual>
+  </link>
+  <link name="LWeel_link">
+    <collision name="LWeel_collision">
+      <origin rpy="0.00000 0.00000 0.00000" xyz="-0.00000 0.03078 -0.00000"/>
+      <geometry>
+        <cylinder radius="0.05000" length="0.10000"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <inertia ixx="0.00042" ixy="0.00000" ixz="0.00000" iyy="0.00083" iyz="0.00000" izz="0.00042"/>
+      <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 -0.10422 -0.05000"/>
+      <mass value="0.50000"/>
+    </inertial>
+    <visual name="LWeel">
+      <material name="None"/>
+      <origin rpy="0.00000 0.00000 0.00000" xyz="-0.00000 0.03078 -0.00000"/>
+      <geometry>
+        <cylinder radius="0.05000" length="0.10000"/>
+      </geometry>
+    </visual>
+  </link>
+  <link name="RWeel_link">
+    <collision name="RWeel_collision">
+      <origin rpy="0.00000 0.00000 0.00000" xyz="-0.00000 -0.03500 -0.00000"/>
+      <geometry>
+        <cylinder radius="0.05000" length="0.10000"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <inertia ixx="0.00044" ixy="0.00000" ixz="0.00000" iyy="0.00086" iyz="-0.00000" izz="0.00044"/>
+      <origin rpy="0.00000 0.00000 0.00000" xyz="-0.00000 0.10000 -0.05000"/>
+      <mass value="0.50000"/>
+    </inertial>
+    <visual name="RWeel">
+      <material name="None"/>
+      <origin rpy="0.00000 0.00000 0.00000" xyz="-0.00000 -0.03500 -0.00000"/>
+      <geometry>
+        <cylinder radius="0.05000" length="0.10000"/>
+      </geometry>
+    </visual>
+  </link>
+</robot>

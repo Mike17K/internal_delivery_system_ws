@@ -1,0 +1,83 @@
+<robot name="AGV" version="1.0">
+  <joint name="WeelLeft_link.001_joint" type="continuous">
+    <limit lower="0.00000" upper="0.00000" effort="0.00000" velocity="0.00000"/>
+    <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+    <parent link="MainBody_link"/>
+    <child link="WeelRight_link"/>
+    <axis xyz="0.00000 0.00000 1.00000"/>
+  </joint>
+  <joint name="WeelLeft_link_joint" type="continuous">
+    <limit lower="0.00000" upper="0.00000" effort="0.00000" velocity="0.00000"/>
+    <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+    <parent link="MainBody_link"/>
+    <child link="WeelLeft_link"/>
+    <axis xyz="0.00000 0.00000 1.00000"/>
+  </joint>
+  <link name="MainBody_link">
+    <collision name="MainBody_collision">
+      <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+      <geometry>
+        <box size="0.50040 0.61202 0.35028"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <inertia ixx="0.00621" ixy="0.00000" ixz="0.00000" iyy="0.00466" iyz="0.00000" izz="0.00780"/>
+      <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+      <mass value="10.00000"/>
+    </inertial>
+    <visual name="MainBody">
+      <material name="Black"/>
+      <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+      <geometry>
+        <box size="0.50000 0.61153 0.35000"/>
+      </geometry>
+    </visual>
+  </link>
+  <link name="WeelRight_link">
+    <collision name="WeelRight_collision">
+      <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+      <geometry>
+        <cylinder radius="0.02468" length="0.20279"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <inertia ixx="0.00000" ixy="0.00000" ixz="0.00000" iyy="0.00000" iyz="0.00000" izz="0.00000"/>
+      <origin rpy="0.00000 0.00000 0.00000" xyz="-0.00000 0.00000 -0.00000"/>
+      <mass value="0.50000"/>
+    </inertial>
+    <visual name="WeelRight">
+      <material name="Weel"/>
+      <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+      <geometry>
+        <cylinder radius="0.05250" length="0.20000"/>
+      </geometry>
+    </visual>
+  </link>
+  <link name="WeelLeft_link">
+    <collision name="WeelLeft_collision">
+      <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+      <geometry>
+        <cylinder radius="0.02575" length="0.20102"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <inertia ixx="0.00000" ixy="0.00000" ixz="-0.00000" iyy="0.00000" iyz="0.00000" izz="0.00000"/>
+      <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 -0.00000"/>
+      <mass value="0.50000"/>
+    </inertial>
+    <visual name="WeelLeft">
+      <material name="Weel"/>
+      <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+      <geometry>
+        <cylinder radius="0.05250" length="0.20000"/>
+      </geometry>
+    </visual>
+  </link>
+  <material name="Black">
+    <color rgba="0.00000 0.00000 0.00000 1.00000"/>
+  </material>
+  <material name="Weel">
+    <texture filename="../../WeelTexture.png"/>
+    <color rgba="0.09020 0.05882 0.00000 1.00000"/>
+  </material>
+</robot>

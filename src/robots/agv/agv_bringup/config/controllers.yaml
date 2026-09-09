@@ -1,0 +1,32 @@
+/$(var namespace):
+  controller_manager:
+    ros__parameters:
+      update_rate: 100
+
+      joint_state_broadcaster:
+        type: joint_state_broadcaster/JointStateBroadcaster
+
+      diff_drive_controller:
+        type: diff_drive_controller/DiffDriveController
+
+  diff_drive_controller:
+    ros__parameters:
+      left_wheel_names: ["$(var namespace)/$(var tf_prefix)wheel_left_joint"]
+      right_wheel_names: ["$(var namespace)/$(var tf_prefix)wheel_right_joint"]
+
+      # From the AGVv3 export (wheel joint Y offsets: +0.14 / -0.14, and
+      # cylinder radius 0.02011 - see agv_description/urdf/agv_macro.xacro).
+      wheel_separation: 0.28
+      wheel_radius: 0.02011
+
+      publish_rate: 50.0
+      base_frame_id: "$(var namespace)/$(var tf_prefix)base_link"
+      odom_frame_id: "$(var namespace)/odom"
+
+      # TF is published by the Gazebo PosePublisher plugin instead (see
+      # gz_bridge.yaml), same convention as group_a, to avoid two competing
+      # broadcasters for the same frames.
+      enable_odom_tf: false
+
+      cmd_vel_timeout: 0.5
+      use_stamped_vel: false

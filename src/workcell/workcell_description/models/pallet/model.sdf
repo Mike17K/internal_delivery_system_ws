@@ -1,0 +1,146 @@
+<?xml version="1.0"?>
+
+<sdf version="1.10">
+
+  <model name="pallet">
+
+    <static>true</static>
+
+    <link name="pallet_link">
+
+      <!-- =========================== -->
+      <!-- TOP                          -->
+      <!-- =========================== -->
+
+      <visual name="top_visual">
+
+        <pose>0 0 0.14 0 0 0</pose>
+
+        <geometry>
+
+          <box>
+            <size>1.2 0.8 0.1</size>
+          </box>
+
+        </geometry>
+
+      </visual>
+
+      <collision name="top_collision">
+
+        <pose>0 0 0.14 0 0 0</pose>
+
+        <geometry>
+
+          <box>
+            <size>1.2 0.8 0.1</size>
+          </box>
+
+        </geometry>
+
+      </collision>
+
+
+      <!-- =========================== -->
+      <!-- SUPPORT 1                    -->
+      <!-- =========================== -->
+
+      <visual name="support_1_visual">
+
+        <pose>0.45 0 0.07 0 0 0</pose>
+
+        <geometry>
+
+          <box>
+            <size>0.1 0.7 0.1</size>
+          </box>
+
+        </geometry>
+
+      </visual>
+
+      <collision name="support_1_collision">
+
+        <pose>0.45 0 0.07 0 0 0</pose>
+
+        <geometry>
+
+          <box>
+            <size>0.1 0.7 0.1</size>
+          </box>
+
+        </geometry>
+
+      </collision>
+
+
+      <!-- =========================== -->
+      <!-- SUPPORT 2                    -->
+      <!-- =========================== -->
+
+      <visual name="support_2_visual">
+
+        <pose>-0.45 0 0.07 0 0 0</pose>
+
+        <geometry>
+
+          <box>
+            <size>0.1 0.7 0.1</size>
+          </box>
+
+        </geometry>
+
+      </visual>
+
+      <collision name="support_2_collision">
+
+        <pose>-0.45 0 0.07 0 0 0</pose>
+
+        <geometry>
+
+          <box>
+            <size>0.1 0.7 0.1</size>
+          </box>
+
+        </geometry>
+
+      </collision>
+
+
+      <!-- =========================== -->
+      <!-- CENTER SUPPORT               -->
+      <!-- =========================== -->
+
+      <visual name="support_center_visual">
+
+        <pose>0 0 0.07 0 0 0</pose>
+
+        <geometry>
+
+          <box>
+            <size>0.1 0.7 0.1</size>
+          </box>
+
+        </geometry>
+
+      </visual>
+
+      <collision name="support_center_collision">
+
+        <pose>0 0 0.07 0 0 0</pose>
+
+        <geometry>
+
+          <box>
+            <size>0.1 0.7 0.1</size>
+          </box>
+
+        </geometry>
+
+      </collision>
+
+    </link>
+
+  </model>
+
+</sdf>
