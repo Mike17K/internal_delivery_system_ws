@@ -70,6 +70,60 @@ the chassis sits level), `fixed` joints (not actuated, not in
 `ros2_control`), friction zeroed via `<gazebo reference="..."><collision><surface><friction><ode><mu>0.0</mu><mu2>0.0</mu2></ode></friction></surface></collision></gazebo>`
 so they only provide vertical support and never resist rolling or turning.
 
+## Lidar
+
+`lidar_link`, mounted centered on `base_link` via a `fixed` joint at
+`x=0, y=0, z=0.13` (body top is at `z=0.11`, so `0.02 m` standoff). A
+`gpu_lidar` sensor (gz-sim's standard 2D/3D lidar type — despite the name,
+it runs on the render pipeline, not a requirement for real GPU hardware; see
+`04-known-issues-and-next-steps.md` for the "is this fast enough under
+software rendering" caveat):
+
+```xml
+<gazebo reference="lidar_link">
+  <sensor name="lidar" type="gpu_lidar">
+    <topic>/model/${namespace}/scan</topic>
+    <lidar>
+      <scan><horizontal><samples>360</samples>
+        <min_angle>-3.14159265</min_angle><max_angle>3.14159265</max_angle>
+      </horizontal></scan>
+      <range><min>0.12</min><max>10.0</max><resolution>0.01</resolution></range>
+    </lidar>
+  </sensor>
+</gazebo>
+```
+
+`<topic>` is set to an **explicit absolute path**
+(`/model/<namespace>/scan`) rather than left to gz-sim's default
+sensor-topic naming convention — same reasoning as the pose/tf bridge
+entries: an absolute path is unambiguous, whereas trusting a specific
+version's default topic-scoping behavior is exactly the category of thing
+that silently broke the mesh loading (see below) earlier in this project.
+Bridged to ROS as `/<namespace>/scan` in `agv_bringup/config/gz_bridge.yaml`:
+
+```yaml
+- ros_topic_name: "/$(var namespace)/scan"
+  gz_topic_name: "/model/$(var namespace)/scan"
+  ros_type_name: "sensor_msgs/msg/LaserScan"
+  gz_type_name: "gz.msgs.LaserScan"
+  direction: GZ_TO_ROS
+```
+
+`agv_navigation/config/nav2_params.yaml` and `mapper_params_online_async.yaml`
+needed **zero changes** for this — their `scan_topic`/`observation_sources`
+were already set to the relative `scan`, anticipating a sensor that didn't
+exist yet. A relative `scan`, inside a node running namespaced as `agv_1`,
+resolves to `/agv_1/scan` via ROS 2's ordinary topic namespacing — this is
+an ordinary sensor topic, not `tf`, so unlike the tf remap
+(`02-bringup-and-simulation.md`) no special remapping was needed here.
+
+360 samples over a full 360° FOV, `0.12–10.0 m` range, `10 Hz` — reasonable
+defaults for a small-footprint 2D lidar (RPLidar-class), not measured
+against any real hardware spec. `lidar_link`'s own mass/inertia
+(`0.05 kg`, solid-cylinder tensor for `r=0.03, L=0.04`) are real, non-zero
+values — never leave a link's inertia at zero (see the "Known-wrong data"
+section below for why that specifically crashes Gazebo's physics solver).
+
 ## Body mesh
 
 `base_link`'s visual is `Cube.026.stl` (28 triangles, verified clean —

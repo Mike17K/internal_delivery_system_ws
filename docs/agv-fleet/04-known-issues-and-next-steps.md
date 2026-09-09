@@ -23,26 +23,38 @@ Fixing either needs an explicit relay/aggregator node reading each robot's
 somewhere shared — a real, separate piece of work, not a side effect of
 anything currently in `agv_navigation`.
 
-## No sensor on the AGV — Nav2's obstacle data has no source
+## Lidar added — but not runtime-verified (was: "no sensor at all")
 
-`agv_description`'s `agv_macro.xacro` has **no lidar, camera, or any other
-sensor**. But `agv_navigation/config/nav2_params.yaml` configures
-`local_costmap`/`global_costmap`'s `obstacle_layer` with
-`observation_sources: scan` (`data_type: LaserScan`), and AMCL uses
-`laser_model_type: likelihood_field` against a `scan_topic: scan` that also
-doesn't exist. **Practical effect**: right now, AMCL would only ever
-correct against odometry (no real sensor update), and the costmaps' dynamic
-obstacle layer would just never receive data — only the static map layer
-(in `slam:=false` mode) would have any content. SLAM Toolbox in
-`slam:=true` mode is in the same position: no scan topic to actually build
-a map from.
+`agv_description`'s `agv_macro.xacro` now has a `gpu_lidar` sensor on
+`lidar_link` (mounted centered on top of the chassis), bridged to ROS as
+`/<namespace>/scan` via `agv_bringup/config/gz_bridge.yaml` — see
+`01-robot-description.md`'s Lidar section for the details. `nav2_params.yaml`/
+`mapper_params_online_async.yaml` needed **no changes** for this: their
+`scan_topic`/`observation_sources` were already set to the relative `scan`
+(from when the navigation stack was first wired up, anticipating this),
+which now resolves to a topic something actually publishes.
 
-**This needs a sensor added to `agv_description` before Nav2 can do
-anything meaningful** — a 2D lidar via a `<gazebo>` sensor block (matching
-the `<gazebo>`-plugin pattern already used for `gz_ros2_control` and
-`PosePublisher` in `agv_macro.xacro`) is the natural next step, bridged
-through `agv_bringup/config/gz_bridge.yaml` the same way pose/tf already
-are.
+**Still unverified**: this has never been run against a live `gz sim`.
+Specific things that could be wrong and are worth checking first if scan
+data doesn't show up:
+- The sensor's `<topic>` is set to an explicit absolute path
+  (`/model/<namespace>/scan`) rather than gz-sim's default sensor-topic
+  naming, on the theory that explicit absolute paths are the one thing
+  proven reliable in this environment (see `01`'s mesh-loading section) —
+  but this specific override for *sensors* (as opposed to plugins like
+  PosePublisher) hasn't been confirmed to actually take effect.
+- The bridged `LaserScan.header.frame_id` is assumed to come out as the
+  bare `lidar_link` (matching this fleet's frame-naming convention) via
+  gz-sim's default sensor-frame behavior — not explicitly set or verified.
+- `gpu_lidar` uses the Sensors system's render pipeline, which has been
+  running under software rendering (llvmpipe, no GPU passthrough) in every
+  session this workspace has been debugged in. Visuals have rendered fine
+  under that fallback, but a lidar's raycasting is a different rendering
+  workload than displaying a mesh — worth confirming it isn't unusably slow
+  under software rendering, especially once scaled to a full fleet, before
+  relying on it. If it is, real GPU passthrough or switching to the CPU-only
+  `lidar` sensor type (no render dependency, slower per-ray but no
+  render-pipeline contention) are the two ways out.
 
 ## Nav2 has never actually been run
 

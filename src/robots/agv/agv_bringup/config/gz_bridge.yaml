@@ -19,3 +19,14 @@
   ros_type_name: "tf2_msgs/msg/TFMessage"
   gz_type_name: "gz.msgs.Pose_V"
   direction: GZ_TO_ROS
+
+# ── Lidar (from the gpu_lidar sensor on lidar_link) ─────────────────────────────
+# nav2_params.yaml's AMCL/costmaps subscribe to a relative "scan" topic, which
+# resolves to /<namespace>/scan under each robot's own namespace - matching
+# this ROS-side topic exactly.
+
+- ros_topic_name: "/$(var namespace)/scan"
+  gz_topic_name: "/model/$(var namespace)/scan"
+  ros_type_name: "sensor_msgs/msg/LaserScan"
+  gz_type_name: "gz.msgs.LaserScan"
+  direction: GZ_TO_ROS

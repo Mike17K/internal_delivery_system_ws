@@ -222,6 +222,47 @@
             <child link="caster_back_link" />
         </joint>
 
+        <!-- ── 2D Lidar ────────────────────────────────────────────────────────
+             Fills the gap flagged in docs/agv-fleet/04-known-issues-and-next-
+             steps.md: nav2_params.yaml's costmaps/AMCL were already configured
+             to expect a "scan" topic (relative - resolves to /<namespace>/scan
+             under each robot's own namespace, no special-casing needed given
+             this fleet's bare-frame-id/per-namespace-topic TF convention), but
+             nothing published it. Mounted centered, on top of the chassis
+             (body top is at z=0.11 - see agv_macro.xacro's base_link comment
+             history; 0.02 m standoff above that). -->
+        <link name="lidar_link">
+            <collision name="lidar_collision">
+                <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+                <geometry>
+                    <cylinder radius="0.03000" length="0.04000" />
+                </geometry>
+            </collision>
+            <inertial>
+                <!-- Solid-cylinder inertia for r=0.03, L=0.04, m=0.05 - small
+                     enough to be dynamically negligible next to the 10 kg
+                     body, but real/non-zero (see docs/agv-fleet/
+                     01-robot-description.md's note on the original AGV
+                     export's zero-inertia crash - never leave this at 0). -->
+                <inertia ixx="0.00002" ixy="0.00000" ixz="0.00000" iyy="0.00002" iyz="0.00000" izz="0.00002" />
+                <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+                <mass value="0.05000" />
+            </inertial>
+            <visual name="lidar_visual">
+                <material name="Lidar" />
+                <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+                <geometry>
+                    <cylinder radius="0.03000" length="0.04000" />
+                </geometry>
+            </visual>
+        </link>
+
+        <joint name="lidar_joint" type="fixed">
+            <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.13000" />
+            <parent link="base_link" />
+            <child link="lidar_link" />
+        </joint>
+
         <gazebo reference="caster_front_link">
             <collision name="caster_front_collision">
                 <surface>
@@ -264,6 +305,9 @@
             <texture filename="$(find agv_description)/meshes/textures/BodyTexture.png" />
             <color rgba="0.80000 0.80000 0.80000 1.00000" />
         </material>
+        <material name="Lidar">
+            <color rgba="0.05000 0.05000 0.05000 1.00000" />
+        </material>
 
         <!-- === ROS 2 Control ────────────────────────────────────────────────── -->
         <ros2_control name="hardware" type="system">
@@ -298,11 +342,13 @@
                 <plugin filename="gz_ros2_control-system"
                     name="gz_ros2_control::GazeboSimROS2ControlPlugin">
                     <ros>
-                        <!-- The one legitimate use of ${namespace} in this file:
-                             scopes gz_ros2_control's own nodes/topics (and, by
+                        <!-- Scopes gz_ros2_control's own nodes/topics (and, by
                              extension, controller_manager/diff_drive_controller)
                              under /<namespace>/... - matching every other node
-                             for this robot, all namespaced the same native way. -->
+                             for this robot, all namespaced the same native way.
+                             (${namespace} is also used below, in the lidar
+                             sensor's <topic>, for the same reason: an explicit
+                             per-robot GZ topic, not a frame/link name.) -->
                         <namespace>${namespace}</namespace>
                     </ros>
                     <parameters>${simulation_controllers}</parameters>
@@ -317,6 +363,53 @@
                     <use_pose_vector_msg>true</use_pose_vector_msg>
                     <update_frequency>50</update_frequency>
                 </plugin>
+            </gazebo>
+
+            <!-- gpu_lidar: gz-sim's standard 2D/3D lidar sensor type. Despite
+                 the name it doesn't require real GPU hardware - it runs via
+                 the Sensors system's render pipeline (already loaded by
+                 office_world.sdf's gz-sim-sensors-system plugin), which works
+                 under the software (llvmpipe) rendering fallback this
+                 environment has been using all along for visuals - just
+                 slower, not broken.
+                 <topic> is set to an explicit, absolute, per-robot path
+                 (/model/<namespace>/scan) rather than left to gz-sim's default
+                 sensor-topic naming - same reasoning as the pose/tf bridge
+                 entries in agv_bringup/config/gz_bridge.yaml: an absolute
+                 path is unambiguous, where relying on a specific version's
+                 default topic-scoping behavior has bitten this project before
+                 (see docs/agv-fleet/01-robot-description.md's mesh-loading
+                 section). Bridged to ROS as /<namespace>/scan in gz_bridge.yaml -
+                 nav2_params.yaml's AMCL/costmaps already expect a relative
+                 "scan" topic, which resolves correctly under each robot's own
+                 namespace with no further changes needed there. -->
+            <gazebo reference="lidar_link">
+                <sensor name="lidar" type="gpu_lidar">
+                    <always_on>true</always_on>
+                    <visualize>false</visualize>
+                    <update_rate>10</update_rate>
+                    <topic>/model/${namespace}/scan</topic>
+                    <lidar>
+                        <scan>
+                            <horizontal>
+                                <samples>360</samples>
+                                <resolution>1</resolution>
+                                <min_angle>-3.14159265</min_angle>
+                                <max_angle>3.14159265</max_angle>
+                            </horizontal>
+                        </scan>
+                        <range>
+                            <min>0.12</min>
+                            <max>10.0</max>
+                            <resolution>0.01</resolution>
+                        </range>
+                        <noise>
+                            <type>gaussian</type>
+                            <mean>0.0</mean>
+                            <stddev>0.01</stddev>
+                        </noise>
+                    </lidar>
+                </sensor>
             </gazebo>
         </xacro:if>
 

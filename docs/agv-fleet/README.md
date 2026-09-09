@@ -27,7 +27,7 @@ src/
   robots/
     agv/
       agv_description/     URDF/xacro, meshes, textures - the robot model
-      agv_bringup/          robot_state_publisher, ros2_control, Gazebo spawn, gz bridge
+      agv_bringup/          robot_state_publisher, ros2_control, Gazebo spawn, gz bridge (pose/tf/scan)
       agv_navigation/        Nav2 params + launch (SLAM/AMCL, per-robot nav stack)
     blender_files/
       AGV/ AGV_S/ AGVv3/     successive Blender/Phobos exports - AGVv3 is current
