@@ -57,8 +57,25 @@ def launch_setup(context):
     # autostart isn't a key in nav2_params.yaml itself - it's only meaningful
     # to the lifecycle managers below, which get it directly via their own
     # inline parameters dict.
+    # The map topic is the one thing that genuinely differs between the two
+    # modes, so it can't be a fixed value in the template:
+    #   slam:=true  - this robot's own slam_toolbox is the map authority and,
+    #                 being namespaced, publishes /<namespace>/map. A relative
+    #                 "map" resolves there (nav2_costmap_2d joins a relative
+    #                 topic with the parent namespace, not the costmap's own
+    #                 sub-namespace), so global_costmap's static layer follows
+    #                 the live map as it's built.
+    #   slam:=false - the ONE fleet-wide map_server (localization.launch.py)
+    #                 publishes an unnamespaced /map that every robot's AMCL
+    #                 and static layer share.
+    # Leaving this at "/map" unconditionally was a real bug: while mapping,
+    # nothing publishes /map at all, so global_costmap waited forever for a
+    # map that was sitting on /<namespace>/map the whole time - the planner
+    # could never produce a path. param_rewrites matches on leaf key name at
+    # any depth, so this covers both amcl's map_topic and the static layer's.
     param_rewrites = {
         "use_sim_time": use_sim_time,
+        "map_topic": "map" if slam_enabled else "/map",
     }
 
     configured_params = ParameterFile(
@@ -83,6 +100,32 @@ def launch_setup(context):
 
     sim_time_param = {"use_sim_time": use_sim_time}
 
+    # nav2_lifecycle_manager's default bond_timeout (4.0s) is tuned for a
+    # single robot's nav stack with hardware acceleration. Under two full
+    # fleet-robot stacks plus lidar gpu_lidar raycasting on software
+    # rendering, a lifecycle node can miss that window even though it's not
+    # actually stuck - observed live: agv_1's own slam_toolbox failed
+    # bringup ("unable to be reached after 4.00s by bond") purely from
+    # system load, not a real hang. A more generous timeout trades a bit of
+    # "detect a truly dead node" responsiveness for not treating "briefly
+    # busy" as "dead" - the right trade for this environment.
+    bond_timeout_param = {"bond_timeout": 10.0}
+
+    # slam_toolbox gets the bond disabled outright (0.0), not just a longer
+    # timeout. 4.0s failed, then 10.0s failed the same way on the next run:
+    # "Server slam_toolbox was unable to be reached after 10.00s by bond ...
+    # Failed to bring up all requested nodes. Aborting bringup." - while
+    # slam_toolbox itself was demonstrably alive and processing scans
+    # afterwards. The bond isn't created until slam_toolbox's on_activate
+    # returns, and under llvmpipe software rendering with two robots'
+    # gpu_lidar raycasting that takes longer than any timeout worth setting.
+    # The cost is losing automatic detection of a genuinely dead
+    # slam_toolbox; the alternative is a manager that aborts the whole
+    # bringup on a node that is merely slow to start, which is strictly
+    # worse. The navigation manager keeps its bond (10.0s above) - those
+    # nodes activate fast and the monitoring is worth having.
+    slam_bond_timeout_param = {"bond_timeout": 0.0}
+
     # ── Localization: SLAM Toolbox (mapping) XOR AMCL (against the shared map) ──
     slam_toolbox_node = Node(
         package="slam_toolbox",
@@ -101,7 +144,7 @@ def launch_setup(context):
         name="lifecycle_manager_slam",
         namespace=namespace,
         output="screen",
-        parameters=[{"autostart": autostart, "node_names": ["slam_toolbox"]}, sim_time_param],
+        parameters=[{"autostart": autostart, "node_names": ["slam_toolbox"]}, sim_time_param, slam_bond_timeout_param],
         condition=IfCondition(LaunchConfiguration("slam")),
     )
 
@@ -122,7 +165,7 @@ def launch_setup(context):
         name="lifecycle_manager_localization",
         namespace=namespace,
         output="screen",
-        parameters=[{"autostart": autostart, "node_names": ["amcl"]}, sim_time_param],
+        parameters=[{"autostart": autostart, "node_names": ["amcl"]}, sim_time_param, bond_timeout_param],
         condition=UnlessCondition(LaunchConfiguration("slam")),
     )
 
@@ -210,7 +253,7 @@ def launch_setup(context):
             name="lifecycle_manager_navigation",
             namespace=namespace,
             output="screen",
-            parameters=[{"autostart": autostart, "node_names": navigation_lifecycle_nodes}, sim_time_param],
+            parameters=[{"autostart": autostart, "node_names": navigation_lifecycle_nodes}, sim_time_param, bond_timeout_param],
         ),
     ]
 

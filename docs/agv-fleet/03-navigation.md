@@ -127,18 +127,42 @@ would publish directly onto the same `cmd_vel` topic.
 - **`slam:=true`** (default — no map exists for `office_world` yet):
   `slam_toolbox`'s `async_slam_toolbox_node`, namespaced, using
   `config/mapper_params_online_async.yaml`. Its own map frame is left as
-  bare `map` (single-mapping-robot assumption — running SLAM on two robots
-  at once would have them fight over the same `map` frame; map two robots'
-  worth of environment by driving them one at a time, or accept this as a
-  known limitation for later multi-robot SLAM work).
+  bare `map` (single-mapping-robot assumption — two simultaneous SLAM
+  instances would each think they own the `map` frame, competing for CPU
+  with no benefit, not producing one merged map). This is now **enforced at
+  the launch level**, not just documented: `workcell_bringup/launch/
+  workcell.launch.py` only gives the *first* robot in `robots_config` a
+  navigation stack while `slam:=true` — other robots stay spawned and
+  controllable in Gazebo but without a Nav2 stack until `slam:=false` gives
+  them an actual map to localize against. (This was originally just a
+  documented assumption; a live run showed two robots each spinning up
+  their own `slam_toolbox` simultaneously, with one of them failing bringup
+  under the resulting load — see `04-known-issues-and-next-steps.md`.)
 - **`slam:=false`**: `nav2_amcl`'s `amcl` node, namespaced, subscribing to
-  the shared `/map` topic (absolute path, `map_topic: /map` in
-  `nav2_params.yaml` — the leading `/` is what makes it bypass the node's
-  own namespace).
+  the shared `/map` topic (absolute path — the leading `/` is what makes it
+  bypass the node's own namespace).
+
+`map_topic` is therefore **not a fixed value** in `nav2_params.yaml`:
+`navigation.launch.py` rewrites it per mode — `"/map"` under `slam:=false`
+(the one fleet-wide `map_server`), relative `"map"` under `slam:=true` (this
+robot's own namespaced `slam_toolbox`, publishing `/<namespace>/map`). It
+was hardcoded to `/map` at first, which meant `global_costmap`'s static
+layer waited forever for a topic nobody published while mapping — see
+`04-known-issues-and-next-steps.md`.
+
+**`slam_toolbox` runs with its lifecycle bond disabled**
+(`bond_timeout: 0.0` on `lifecycle_manager_slam` only). It does not create
+its bond until `on_activate` returns, and under software rendering with two
+robots' `gpu_lidar` raycasting that outran both 4.0s and 10.0s timeouts —
+`lifecycle_manager_slam` then aborted the entire bringup for a node that
+was demonstrably alive and processing scans. The cost is losing automatic
+detection of a genuinely dead `slam_toolbox`; `lifecycle_manager_navigation`
+keeps its 10.0s bond, since those nodes activate quickly.
 
 To build the first map: launch with `slam:=true`, drive `agv_1` around
-(e.g. `teleop_twist_keyboard` publishing to `/agv_1/cmd_vel`, or
-`/agv_1/cmd_vel_nav` if going through the smoother), then save it —
+(e.g. `teleop_twist_keyboard --stamped` publishing to `/agv_1/cmd_vel`, or
+`/agv_1/cmd_vel_nav` if going through the smoother — note `--stamped`:
+`diff_drive_controller` 4.x only accepts `TwistStamped`), then save it —
 `ros2 run nav2_map_server map_saver_cli -f <path>` or SLAM Toolbox's own
 save-map service. Then relaunch with `slam:=false map:=<path>.yaml`.
 

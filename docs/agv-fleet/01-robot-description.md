@@ -81,6 +81,7 @@ software rendering" caveat):
 
 ```xml
 <gazebo reference="lidar_link">
+  <disableFixedJointLumping>true</disableFixedJointLumping>
   <sensor name="lidar" type="gpu_lidar">
     <topic>/model/${namespace}/scan</topic>
     <lidar>
@@ -93,9 +94,20 @@ software rendering" caveat):
 </gazebo>
 ```
 
+**`<disableFixedJointLumping>` is required, not decorative.** Without it,
+URDF→SDF conversion merges `lidar_link` (attached via a `fixed` joint) into
+`base_link` as a standard optimization, and the sensor's auto-generated
+frame reflects *that* merge instead of `lidar_link`. This wasn't caught
+until a live run: the bridge worked correctly, but `slam_toolbox` logged,
+forever, `Message Filter dropping message: frame '.../base_link/lidar' ...
+queue is full` — that frame matched nothing in the actually-published TF
+tree, so every scan was silently unusable. Same fix applied to the casters
+(`caster_front_link`/`caster_back_link`) for consistency, though nothing
+currently depends on their own tf frame.
+
 `<topic>` is set to an **explicit absolute path**
 (`/model/<namespace>/scan`) rather than left to gz-sim's default
-sensor-topic naming convention — same reasoning as the pose/tf bridge
+sensor-topic naming convention — same reasoning as the pose bridge
 entries: an absolute path is unambiguous, whereas trusting a specific
 version's default topic-scoping behavior is exactly the category of thing
 that silently broke the mesh loading (see below) earlier in this project.

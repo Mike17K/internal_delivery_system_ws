@@ -27,7 +27,7 @@ src/
   robots/
     agv/
       agv_description/     URDF/xacro, meshes, textures - the robot model
-      agv_bringup/          robot_state_publisher, ros2_control, Gazebo spawn, gz bridge (pose/tf/scan)
+      agv_bringup/          robot_state_publisher, ros2_control, Gazebo spawn, gz bridge (pose + lidar scan)
       agv_navigation/        Nav2 params + launch (SLAM/AMCL, per-robot nav stack)
     blender_files/
       AGV/ AGV_S/ AGVv3/     successive Blender/Phobos exports - AGVv3 is current
@@ -64,7 +64,7 @@ ros2 launch workcell_bringup workcell.launch.py sim_gazebo:=true use_fake_hardwa
         │                          │        agv_bringup             agv_navigation
         │                          │     (spawn, ros2_control,    (SLAM xor AMCL +
         │                          │      diff_drive_controller,   controller/planner/
-        │                          │      gz_bridge: pose+tf)      bt_navigator/costmaps,
+        │                          │      gz_bridge: pose+scan)   bt_navigator/costmaps,
         │                          │                                 namespaced)
         └──────────────────────────┴───────────────────────────────────────┘
                     each robot's own /<namespace>/tf topic

@@ -130,22 +130,39 @@ def generate_launch_description():
         # Stagger each robot by 0.5s to avoid simultaneous Gazebo spawn requests
         ld.add_action(TimerAction(period=float(i) * 0.5, actions=[robot_stack]))
 
-        navigation_stack = GroupAction(
-            actions=[
-                IncludeLaunchDescription(
-                    PythonLaunchDescriptionSource(nav_launch_path),
-                    launch_arguments={
-                        "namespace": robot["name"],
-                        "use_sim_time": LaunchConfiguration("sim_gazebo"),
-                        "autostart": "true",
-                        "slam": LaunchConfiguration("slam"),
-                        "initial_pose_x": x,
-                        "initial_pose_y": y,
-                        "initial_pose_yaw": yaw,
-                    }.items(),
-                ),
-            ]
+        if i == 0:
+            # Mapping (slam:=true) is a single-robot activity - running two
+            # simultaneous slam_toolbox instances doesn't build one merged
+            # map, it's just two independent mappers each thinking they own
+            # the "map" frame, competing for CPU for no benefit (confirmed
+            # live: with both robots mapping, agv_1's own slam_toolbox missed
+            # its lifecycle bond heartbeat and failed to bring up at all).
+            # Only the first fleet robot gets SLAM; it always gets a
+            # navigation stack, in whichever mode the fleet is in.
+            nav_slam_arg = LaunchConfiguration("slam")
+            nav_condition = None
+        else:
+            # Other robots only get a navigation stack once there's an actual
+            # map to localize against (slam:=false) - while mapping, they sit
+            # idle in Gazebo without a Nav2 stack rather than each spinning up
+            # a redundant, competing SLAM instance.
+            nav_slam_arg = "false"
+            nav_condition = UnlessCondition(LaunchConfiguration("slam"))
+
+        navigation_include = IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(nav_launch_path),
+            launch_arguments={
+                "namespace": robot["name"],
+                "use_sim_time": LaunchConfiguration("sim_gazebo"),
+                "autostart": "true",
+                "slam": nav_slam_arg,
+                "initial_pose_x": x,
+                "initial_pose_y": y,
+                "initial_pose_yaw": yaw,
+            }.items(),
+            condition=nav_condition,
         )
+        navigation_stack = GroupAction(actions=[navigation_include])
         # Give each robot's own bringup (spawn + controllers) a head start
         # before its Nav2 stack comes up and starts looking for it.
         ld.add_action(TimerAction(period=float(i) * 0.5 + 3.0, actions=[navigation_stack]))

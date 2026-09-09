@@ -25,16 +25,71 @@
       wheel_radius: 0.02011
 
       publish_rate: 50.0
-      # Bare frame ids: this robot's own /<namespace>/tf topic is what
-      # disambiguates it from other robots, not the frame name text - see
-      # docs/agv-fleet/02-bringup-and-simulation.md.
-      base_frame_id: "base_link"
-      odom_frame_id: "odom"
 
-      # TF is published by the Gazebo PosePublisher plugin instead (see
-      # gz_bridge.yaml), same convention as group_a, to avoid two competing
-      # broadcasters for the same frames.
-      enable_odom_tf: false
+      # ── Frame ids: bare names, leading slash, prefixing off ───────────────
+      # This fleet disambiguates robots by tf TOPIC (/<namespace>/tf), never
+      # by frame-name text - see docs/agv-fleet/02-bringup-and-simulation.md.
+      # Two settings are needed to actually get that, and they were arrived
+      # at from a live failure, so don't "simplify" either without re-testing
+      # with `ros2 run tf2_tools view_frames --ros-args -r tf:=/agv_1/tf`:
+      #
+      # 1. tf_frame_prefix_enable: false
+      #    diff_drive_controller defaults this to TRUE, and when
+      #    tf_frame_prefix is empty it falls back to the controller node's
+      #    namespace. Left at the default it broadcast
+      #    "agv_1/odom -> agv_1/base_link" while robot_state_publisher
+      #    (whose own frame_prefix defaults to "") broadcast
+      #    "base_link -> {wheel_*, caster_*, lidar_link}" - two disjoint
+      #    trees on the same topic, confirmed with view_frames. Nav2's
+      #    "Invalid frame ID 'odom'" was the honest result: no frame named
+      #    plain "odom" existed anywhere.
+      #
+      # 2. The leading "/" on the two values below.
+      #    tf2 strips a leading slash from frame ids on receipt
+      #    (BufferCore::setTransform), so these arrive as "base_link" and
+      #    "odom" - matching robot_state_publisher and nav2_params.yaml. It
+      #    also makes the values immune to any prefix being re-concatenated
+      #    in front of them by a future default change. This is the form
+      #    that was verified working on a live run; bare names are expected
+      #    to behave identically given (1), but that combination was not the
+      #    one tested.
+      base_frame_id: "/base_link"
+      odom_frame_id: "/odom"
+
+      tf_frame_prefix_enable: false
+
+      # diff_drive_controller is the standard, correct source for
+      # odom -> base_link (integrated from commanded wheel motion) - what
+      # Nav2/AMCL/SLAM expect. PosePublisher's tf output is not bridged into
+      # ROS (see gz_bridge.yaml) to avoid it also claiming a conflicting
+      # (ground-truth-relative) parent for base_link.
+      #
+      # This flag is one of THREE things that all have to be right before a
+      # usable odom -> base_link exists. It took several live runs to find
+      # them all, each one producing the identical
+      # "Invalid frame ID 'odom' ... frame does not exist" from Nav2, so if
+      # that message ever returns, check all three before anything else:
+      #
+      #   1. enable_odom_tf: true (here) - turns the broadcaster on at all.
+      #   2. The tf topic. The broadcaster hardcodes an absolute "/tf" and
+      #      neither this file nor any launch-file remapping can redirect
+      #      it, because a controller is a node built inside
+      #      controller_manager's process, not a process of its own. The
+      #      redirect onto /<namespace>/tf comes from the spawner's
+      #      "controller ros args" in agv_bringup/launch/bringup.launch.py.
+      #   3. The frame names. See the tf_frame_prefix_enable block above.
+      #
+      # And separately from all three, the controller publishes no odometry
+      # at all until it has received one velocity command - see the
+      # odom_bootstrap action in bringup.launch.py.
+      enable_odom_tf: true
 
       cmd_vel_timeout: 0.5
-      use_stamped_vel: false
+      # NOTE: no `use_stamped_vel` - it was removed from diff_drive_controller
+      # (4.x), which accepts geometry_msgs/TwistStamped on ~/cmd_vel and
+      # nothing else. Nav2's matching `enable_stamped_cmd_vel: true` is set in
+      # agv_navigation/config/nav2_params.yaml; the two must agree or cmd_vel
+      # connects by topic name and then silently never delivers a message.
+      # Confirmed on a live run: bringup.launch.py's odom_bootstrap publishes
+      # TwistStamped and the controller acted on it (odometry started
+      # flowing), so this side of the contract is settled.

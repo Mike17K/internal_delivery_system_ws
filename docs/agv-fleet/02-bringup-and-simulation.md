@@ -16,16 +16,61 @@ Nodes, in order:
    (`[("/tf", "tf"), ("/tf_static", "tf_static")]`) — see "Fleet TF
    strategy" below for why the remap is the part that actually matters.
 2. **`ros2_control_node`** (`controller_manager`) — only when `sim_gazebo`
-   is false (real-hardware / mock path; in sim, `gz_ros2_control`'s plugin
-   inside gz-sim itself plays this role instead). Same tf remap applied.
+   is false (real-hardware / mock path). Deliberately gets **no** tf remap:
+   `controller_manager` never publishes tf, only the controllers it loads
+   do, and a remap on this process does not reach them (see item 5). **In
+   `sim_gazebo` mode this node never runs at all** — `gz_ros2_control`'s
+   plugin (in `agv_macro.xacro`'s `<gazebo>` block) creates its own
+   `controller_manager` *inside the Gazebo process itself* instead.
 3. **`ros_gz_sim create`** — spawns the robot into the already-running
    Gazebo world via `-topic robot_description -name <namespace>`, with pose
    given as `-x -y -z -R -P -Y` (parsed from the `xyz`/`rpy` args).
-4. **`ros_gz_bridge parameter_bridge`** — bridges pose/tf out of Gazebo
+4. **`ros_gz_bridge parameter_bridge`** — bridges pose and the lidar scan out of Gazebo
    (see `config/gz_bridge.yaml` below).
-5. **`joint_state_broadcaster` + `diff_drive_controller` spawner** — via
-   `controller_manager/spawner`, delayed 4s (`TimerAction`) to let the
-   controller manager come up first.
+5. **Two `controller_manager/spawner` invocations** — one for
+   `joint_state_broadcaster`, one for `diff_drive_controller` — both
+   delayed 4s (`TimerAction`) to let the controller manager come up first.
+   They're split because only `diff_drive_controller` needs
+   `--controller-ros-args`, and those args apply to every controller named
+   in a single spawner call:
+
+   ```python
+   "--controller-ros-args",
+   "-r /tf:=tf -r /tf_static:=tf_static -r ~/odom:=odom -r ~/cmd_vel:=cmd_vel",
+   ```
+
+   **This is the single most important line in the bringup**, and the
+   reason it has to be here rather than in a `remappings=` list is worth
+   internalizing: a controller is *not a process*. `controller_manager`
+   builds `diff_drive_controller` as a node inside its own process, and
+   that node creates its own `TransformBroadcaster` (hardcoded absolute
+   `/tf`). Remaps given to the `controller_manager` process — from a launch
+   file or from the gz plugin's `<ros><remapping>` — configure that
+   process's node, never the controller nodes it constructs later. The
+   spawner instead writes these args to the controller's
+   `node_options_args` parameter *before* loading it, so they're applied at
+   controller-node construction. It works the same in `sim_gazebo` mode and
+   on real hardware, because the args travel with the controller. The four
+   remaps do:
+
+   | Remap | Fixes |
+   | --- | --- |
+   | `/tf`, `/tf_static` | `odom -> base_link` lands on `/<ns>/tf`, not the global `/tf` |
+   | `~/odom` | `/<ns>/odom`, which `nav2_params.yaml`'s `odom_topic: odom` resolves to (default: `/<ns>/diff_drive_controller/odom`) |
+   | `~/cmd_vel` | `/<ns>/cmd_vel`, what `velocity_smoother` publishes (default: `/<ns>/diff_drive_controller/cmd_vel`) |
+
+6. **`odom_bootstrap`** (`ExecuteProcess`) — publishes three zero
+   `TwistStamped` messages to `/<namespace>/cmd_vel`. This looks like a
+   hack and is not: `diff_drive_controller` 4.x early-returns out of
+   `update_and_write_commands` while its reference interfaces are NaN
+   (which they are from activation until the first command), and the
+   `/odom` publisher *and* the `odom -> base_link` tf broadcast both sit
+   after that early return. Nav2 won't command the base until it can
+   resolve `odom`; the controller won't produce `odom` until commanded.
+   One finite command breaks the deadlock permanently. Full evidence,
+   including the disassembly, is in
+   `04-known-issues-and-next-steps.md`. **Delete this and the robot has no
+   `odom` frame, ever.**
 
 ## `agv_bringup/config/controllers.yaml`
 
@@ -36,16 +81,50 @@ diff_drive_controller:
     right_wheel_names: ["wheel_right_joint"]
     wheel_separation: 0.28      # from AGVv3's actual joint geometry
     wheel_radius: 0.02011
-    base_frame_id: "base_link"   # bare - see "Fleet TF strategy" below
-    odom_frame_id: "odom"
-    enable_odom_tf: false        # PosePublisher owns tf instead - see below
+    base_frame_id: "/base_link"      # see "Frame ids" below
+    odom_frame_id: "/odom"
+    tf_frame_prefix_enable: false     # ditto - required
+    enable_odom_tf: true
+    cmd_vel_timeout: 0.5
 ```
 
-Joint names and frame ids are bare (`wheel_left_joint`, `base_link`, `odom`)
-— not prefixed with the namespace. This `diff_drive_controller` instance
-already runs scoped to one robot (the whole file is wrapped in
-`/$(var namespace):`, a *node-parameter* scoping concern, unrelated to frame
-naming), so there's no ambiguity a bare name could cause.
+There is deliberately **no `use_stamped_vel`** — it was removed from
+`diff_drive_controller` 4.x, which now accepts `geometry_msgs/TwistStamped`
+on `~/cmd_vel` and nothing else. Nav2 defaults to unstamped `Twist`, so
+`nav2_params.yaml` sets `enable_stamped_cmd_vel: true` on
+`controller_server`, `behavior_server` and `velocity_smoother`. The two
+must agree, or `cmd_vel` connects by topic name and silently never
+delivers a message. The controller side is confirmed — `odom_bootstrap`
+(item 6) publishes `TwistStamped` and the controller acts on it; Nav2's own
+output hasn't been exercised by a navigation goal yet.
+
+Joint names are bare (`wheel_left_joint`) — not prefixed with the
+namespace. This `diff_drive_controller` instance already runs scoped to one
+robot (the whole file is wrapped in `/$(var namespace):`, a
+*node-parameter* scoping concern, unrelated to frame naming), so there's no
+ambiguity a bare name could cause.
+
+### Frame ids — `tf_frame_prefix_enable: false` is required
+
+The effective frame names are bare (`base_link`, `odom`), matching
+`robot_state_publisher` and `nav2_params.yaml`, per the fleet TF strategy
+below. Getting them that way takes two settings, both non-obvious:
+
+- **`tf_frame_prefix_enable: false`.** `diff_drive_controller` defaults
+  this to `true`, and with `tf_frame_prefix` empty it falls back to the
+  controller node's namespace. Left at the default it published
+  `agv_1/odom -> agv_1/base_link`, while `robot_state_publisher` (its own
+  `frame_prefix` defaults to `""`) published
+  `base_link -> {wheel_*, caster_*, lidar_link}` — two disjoint trees on
+  the same topic, and no frame named plain `odom` anywhere.
+- **The leading `/`** on `"/base_link"` / `"/odom"`. `tf2` strips a leading
+  slash from frame ids on receipt (`BufferCore::setTransform`), so these
+  arrive as `base_link` / `odom`, and the values remain correct even if
+  some prefix were concatenated in front of them again.
+
+This exact pair is what was verified working. Bare names should behave
+identically with the prefix disabled, but that variant wasn't tested —
+re-run `view_frames` (below) if you change either.
 
 `wheel_separation`/`wheel_radius` are real, geometry-derived values (from
 `agv_macro.xacro`'s joint origins and cylinder radius) — not placeholders.
@@ -55,31 +134,62 @@ time; they're exact now that AGVv3 provides real joint origins. **If the
 robot model's wheel geometry changes again, this file needs updating to
 match** — nothing computes it automatically.
 
-`enable_odom_tf: false` is deliberate: `diff_drive_controller` *could*
-publish `odom -> base_link`, but the Gazebo `PosePublisher` plugin (in
-`agv_macro.xacro`'s `<gazebo>` block) already publishes the whole tf tree
-from the simulator's ground-truth poses. Having both would mean two
-competing broadcasters for the same frames.
+**`enable_odom_tf: true` — necessary, but not sufficient by itself.**
+`diff_drive_controller` is the standard, correct source for `odom ->
+base_link` (integrated from commanded wheel motion) — what Nav2/AMCL/SLAM
+expect. `PosePublisher`'s tf output is not bridged into ROS (see
+`gz_bridge.yaml` below) to avoid it also claiming a conflicting
+(ground-truth-relative) parent for `base_link`.
+
+This flag is one of **three** things that must all be right before a usable
+`odom -> base_link` exists. Each one missing on its own produced the
+byte-identical `Invalid frame ID "odom"` from Nav2, which is why it took
+seven runs to unpick:
+
+1. **The topic.** The tf broadcaster this flag enables hardcodes an
+   absolute `/tf`; only the spawner's `--controller-ros-args` can redirect
+   it onto `/<namespace>/tf` (item 5 above).
+2. **Publishing at all.** The controller must have received at least one
+   velocity command, or it early-returns before computing any odometry
+   (item 6 above).
+3. **The frame names.** `tf_frame_prefix_enable: false` — see "Frame ids"
+   above.
+
+The full history, with the disassembly and `view_frames` output that
+settled it, is in `04-known-issues-and-next-steps.md`. Check all three
+before touching anything else.
+
+**The diagnostic that actually distinguishes them:**
+
+```bash
+ros2 run tf2_tools view_frames --ros-args -r tf:=/agv_1/tf -r tf_static:=/agv_1/tf_static
+```
+
+Nothing on the topic → cause 1 or 2. Two disconnected trees → cause 3.
+`ros2 topic echo /agv_1/tf --once` shows frame names but makes a
+disconnected tree look like a perfectly reasonable transform.
 
 ## `agv_bringup/config/gz_bridge.yaml`
 
-Bridges exactly two things out of Gazebo, both namespace-templated via
-`$(var namespace)` — **on both sides**:
+Bridges two things out of Gazebo (plus the lidar's scan — see
+`01-robot-description.md`), namespace-templated via `$(var namespace)`:
 
 ```yaml
 - ros_topic_name: "/$(var namespace)/pose"
   gz_topic_name: "/model/$(var namespace)/pose"
   ...
-- ros_topic_name: "/$(var namespace)/tf"
-  gz_topic_name: "/$(var namespace)/tf"
-  ...
 ```
 
-The Gazebo `PosePublisher` plugin (in `agv_macro.xacro`) publishes poses
-using the URDF's bare link names (`base_link`, `wheel_left_link`, ...); this
-bridge lands them on `agv_1`'s *own* `/agv_1/tf` topic, not a shared global
-one — that per-robot topic is what disambiguates `agv_1`'s `base_link` from
-`agv_2`'s, not the frame name text.
+`PosePublisher`'s tf output is deliberately **not** bridged (it used to be,
+as `/$(var namespace)/tf` — removed). With `diff_drive_controller` now
+publishing `odom -> base_link` and `robot_state_publisher` publishing
+`base_link -> {wheels, lidar_link, casters}`, bridging `PosePublisher`'s tf
+too would mean two sources independently claiming a (different) parent for
+`base_link` — an active conflict, not just redundant data. The `/pose`
+bridge above is unaffected (an independent gz topic) — ground-truth pose
+data is still available there for anything that wants it later (RMF fleet
+state, monitoring, etc.), it's just no longer part of the tf tree Nav2
+relies on.
 
 ## Fleet TF strategy — read this before touching anything TF-related
 
@@ -111,12 +221,25 @@ remap on every tf-touching node:
 ```python
 remappings=[("/tf", "tf"), ("/tf_static", "tf_static")]
 ```
-This is applied in `agv_bringup/launch/bringup.launch.py` (robot_state_publisher,
-controller_manager) and `agv_navigation/launch/navigation.launch.py` (AMCL/
-SLAM Toolbox and the whole navigation stack) — miss this remap on any one
-node and that node silently falls back to the global `/tf`, which is exactly
-the kind of subtle multi-robot bug this convention is otherwise supposed to
-prevent.
+This is applied in `agv_bringup/launch/bringup.launch.py`
+(`robot_state_publisher`) and `agv_navigation/launch/navigation.launch.py`
+(AMCL / SLAM Toolbox and the whole navigation stack) — miss this remap on
+any one node and that node silently falls back to the global `/tf`, which
+is exactly the kind of subtle multi-robot bug this convention is otherwise
+supposed to prevent.
+
+**Two exceptions, both learned the hard way:**
+
+- **`ros2_control` controllers don't take it this way.** A controller is a
+  node built *inside* `controller_manager`'s process, so a `remappings=`
+  on the process never reaches it. It goes on the spawner instead, as
+  `--controller-ros-args "-r /tf:=tf ..."`. `controller_manager` itself
+  gets no tf remap at all — it publishes no tf.
+- **Getting the topic right does not get the frame names right.**
+  `diff_drive_controller` prefixes frame ids with its namespace by default,
+  which yields a correctly-namespaced topic carrying frames
+  (`agv_1/odom`, `agv_1/base_link`) that no other publisher on that topic
+  agrees with. See "Frame ids" above.
 
 **What this does *not* give you for free**: a single RViz session showing
 every robot in one unified tree. Each robot's `map -> odom -> base_link`

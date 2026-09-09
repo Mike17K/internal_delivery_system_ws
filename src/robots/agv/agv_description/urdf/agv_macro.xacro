@@ -264,6 +264,12 @@
         </joint>
 
         <gazebo reference="caster_front_link">
+            <!-- Without this, URDF->SDF conversion lumps fixed-jointed links
+                 into their parent (an optimization) - harmless here since
+                 nothing looks up a "caster_front_link" tf frame, but kept for
+                 consistency with lidar_link below, where the exact same
+                 lumping silently broke sensor data (see that comment). -->
+            <disableFixedJointLumping>true</disableFixedJointLumping>
             <collision name="caster_front_collision">
                 <surface>
                     <friction>
@@ -276,6 +282,7 @@
             </collision>
         </gazebo>
         <gazebo reference="caster_back_link">
+            <disableFixedJointLumping>true</disableFixedJointLumping>
             <collision name="caster_back_collision">
                 <surface>
                     <friction>
@@ -348,7 +355,30 @@
                              for this robot, all namespaced the same native way.
                              (${namespace} is also used below, in the lidar
                              sensor's <topic>, for the same reason: an explicit
-                             per-robot GZ topic, not a frame/link name.) -->
+                             per-robot GZ topic, not a frame/link name.)
+
+                             DO NOT add <remapping>/tf:=tf</remapping> here.
+                             It was tried (twice) to get
+                             diff_drive_controller's odom tf onto this robot's
+                             own topic and it does NOT work: a <remapping>
+                             here configures the controller_manager *process*,
+                             while the tf broadcaster that needs remapping
+                             belongs to the diff_drive_controller *node* that
+                             controller_manager constructs inside that process.
+                             Confirmed live - the remap was visibly present in
+                             controller_manager's launch args while the "odom"
+                             frame still never appeared on /<namespace>/tf, and
+                             controller_manager itself logged that
+                             process-level remaps are deprecated for exactly
+                             this reason. The working fix is the spawner's
+                             "controller ros args" flag in
+                             agv_bringup/launch/bringup.launch.py, which
+                             attaches the remap to the controller node instead
+                             of to this process.
+                             The <namespace> below is a different matter and is
+                             both correct and required - it is what scopes this
+                             plugin's own controller_manager (and therefore the
+                             controller nodes it builds) to /<namespace>/... -->
                         <namespace>${namespace}</namespace>
                     </ros>
                     <parameters>${simulation_controllers}</parameters>
@@ -382,13 +412,47 @@
                  section). Bridged to ROS as /<namespace>/scan in gz_bridge.yaml -
                  nav2_params.yaml's AMCL/costmaps already expect a relative
                  "scan" topic, which resolves correctly under each robot's own
-                 namespace with no further changes needed there. -->
+                 namespace with no further changes needed there.
+
+                 <gz_frame_id> is what makes the scan frame_id usable, and
+                 it is not optional. gz-sim otherwise stamps sensor messages
+                 with the sensor's *scoped entity name* -
+                 "<model>/<link>/<sensor>", i.e. "agv_1/base_link/lidar" -
+                 which matches nothing robot_state_publisher publishes, so
+                 slam_toolbox logged "Message Filter dropping message: frame
+                 '.../base_link/lidar' ... queue is full" forever. Note the
+                 scoped name would still have been wrong
+                 ("agv_1/lidar_link/lidar") even with lumping disabled, which
+                 is why an earlier <disableFixedJointLumping>-only attempt
+                 changed nothing: the frame name was never about lumping.
+                 <gz_frame_id> overrides the stamp outright with the real URDF
+                 link name. CONFIRMED on a live run - the scan now arrives as
+                 frame "lidar_link".
+                 gz-sim logs a warning about this element ("XML
+                 Element[gz_frame_id], child of element[sensor], not defined
+                 in SDF. Copying[gz_frame_id] as children of [sensor]") on
+                 every spawn. That warning is expected and harmless: copying
+                 the unknown element through to the sensor is exactly how it
+                 reaches the sensor system, and the corrected frame in the
+                 output proves it was read.
+                 <disableFixedJointLumping> is kept, on lidar_joint as well as
+                 the link (sdformat's URDF converter reads it off the JOINT -
+                 the original link-only placement was a no-op), so the SDF
+                 keeps a real lidar_link to hang the sensor off rather than a
+                 sensor re-parented onto base_link with a baked-in offset. -->
+
+            <gazebo reference="lidar_joint">
+                <disableFixedJointLumping>true</disableFixedJointLumping>
+            </gazebo>
+
             <gazebo reference="lidar_link">
+                <disableFixedJointLumping>true</disableFixedJointLumping>
                 <sensor name="lidar" type="gpu_lidar">
                     <always_on>true</always_on>
                     <visualize>false</visualize>
                     <update_rate>10</update_rate>
                     <topic>/model/${namespace}/scan</topic>
+                    <gz_frame_id>lidar_link</gz_frame_id>
                     <lidar>
                         <scan>
                             <horizontal>
