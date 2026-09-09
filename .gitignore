@@ -4,3 +4,6 @@ build/
 log/
 
 isaac_ros_assets/
+
+**/__pycache__/
+**/*.pyc

@@ -9,8 +9,12 @@
   direction: GZ_TO_ROS
 
 # ── TF (from PosePublisher plugin) ─────────────────────────────────────────────
+# Bridged onto THIS ROBOT'S OWN /<namespace>/tf, not the shared/global /tf -
+# frame ids inside these transforms are bare (base_link, wheel_left_link, ...,
+# from agv_description's URDF), so the topic namespace is what disambiguates
+# this robot's tf from every other robot's, not the frame name text.
 
-- ros_topic_name: "/tf"
+- ros_topic_name: "/$(var namespace)/tf"
   gz_topic_name: "/$(var namespace)/tf"
   ros_type_name: "tf2_msgs/msg/TFMessage"
   gz_type_name: "gz.msgs.Pose_V"

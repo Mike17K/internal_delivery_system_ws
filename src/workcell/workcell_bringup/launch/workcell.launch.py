@@ -4,7 +4,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, GroupAction, AppendEnvironmentVariable, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch_ros.actions import Node
 
 
@@ -43,6 +43,17 @@ def generate_launch_description():
         default_value=PathJoinSubstitution([pkg_workcell_description, "worlds", "office_world.sdf"]), # workcell_world.sdf
         description="Gazebo world file to load",
     )
+    slam_arg = DeclareLaunchArgument(
+        "slam",
+        default_value="true",
+        description="true: every robot runs SLAM Toolbox to build/extend a map (drive one robot at a time to map). "
+        "false: fleet-wide shared map_server + per-robot AMCL against a saved map (requires 'map' to be set).",
+    )
+    map_arg = DeclareLaunchArgument(
+        "map",
+        default_value="",
+        description="Full path to a saved map yaml file - required when slam:=false, ignored when slam:=true",
+    )
 
     # 4. Εκκίνηση Global Gazebo Instance
     gazebo = IncludeLaunchDescription(
@@ -69,6 +80,25 @@ def generate_launch_description():
     world_node = Node(package="tf2_ros", executable="static_transform_publisher", arguments=["0", "0", "0", "0", "0", "0", "world", "map"])
     ld.add_action(world_node)
 
+    # 6b. Fleet-wide shared map_server (once, not per-robot) - only when
+    # localizing against a saved map. In slam:=true mode each robot's own
+    # SLAM Toolbox instance (see agv_navigation/launch/navigation.launch.py)
+    # publishes /map itself instead, so this and that are mutually exclusive.
+    pkg_agv_navigation_share = get_package_share_directory("agv_navigation")
+    localization_launch_path = os.path.join(pkg_agv_navigation_share, "launch", "localization.launch.py")
+    nav_launch_path = os.path.join(pkg_agv_navigation_share, "launch", "navigation.launch.py")
+
+    localization = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(localization_launch_path),
+        launch_arguments={
+            "map": LaunchConfiguration("map"),
+            "use_sim_time": LaunchConfiguration("sim_gazebo"),
+            "autostart": "true",
+        }.items(),
+        condition=UnlessCondition(LaunchConfiguration("slam")),
+    )
+    ld.add_action(localization)
+
     # 7. Ορισμός των Ρομπότ στην Κυψέλη Εργασίας
     robots_config = [
         {"name": "agv_1", "xyz": "0.0 0.0 0.0", "rpy": "0.0 0.0 0.0"},
@@ -78,8 +108,11 @@ def generate_launch_description():
     pkg_agv_bringup_share = get_package_share_directory("agv_bringup")
     agv_launch_path = os.path.join(pkg_agv_bringup_share, "launch", "bringup.launch.py")
 
-    # 8. Loop που καλεί το ανεξάρτητο bringup του κάθε ρομπότ
+    # 8. Loop που καλεί το ανεξάρτητο bringup + navigation stack του κάθε ρομπότ
     for i, robot in enumerate(robots_config):
+        x, y, z = robot["xyz"].split()
+        roll, pitch, yaw = robot["rpy"].split()
+
         robot_stack = GroupAction(
             actions=[
                 IncludeLaunchDescription(
@@ -97,4 +130,24 @@ def generate_launch_description():
         # Stagger each robot by 0.5s to avoid simultaneous Gazebo spawn requests
         ld.add_action(TimerAction(period=float(i) * 0.5, actions=[robot_stack]))
 
-    return LaunchDescription([use_fake_hardware_arg, sim_gazebo_arg, world_arg, ld])
+        navigation_stack = GroupAction(
+            actions=[
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(nav_launch_path),
+                    launch_arguments={
+                        "namespace": robot["name"],
+                        "use_sim_time": LaunchConfiguration("sim_gazebo"),
+                        "autostart": "true",
+                        "slam": LaunchConfiguration("slam"),
+                        "initial_pose_x": x,
+                        "initial_pose_y": y,
+                        "initial_pose_yaw": yaw,
+                    }.items(),
+                ),
+            ]
+        )
+        # Give each robot's own bringup (spawn + controllers) a head start
+        # before its Nav2 stack comes up and starts looking for it.
+        ld.add_action(TimerAction(period=float(i) * 0.5 + 3.0, actions=[navigation_stack]))
+
+    return LaunchDescription([use_fake_hardware_arg, sim_gazebo_arg, world_arg, slam_arg, map_arg, ld])

@@ -6,6 +6,8 @@ ROS 2 (Jazzy) workspace for multi-arm manipulation on lift-mounted UR arms ("gro
 
 All development happens inside a container built via the [Isaac ROS CLI](https://nvidia-isaac-ros.github.io/concepts/dev_env/index.html) — there is no host ROS install. Design rationale (why nvblox runs in static TSDF mode, why the workspace lives inside the container) is in [docs/STRUCTURAL_DESISIONS.md](docs/STRUCTURAL_DESISIONS.md).
 
+The current AGV fleet setup (robot description, bringup, Nav2 — what's done, what's not, why some decisions were made) is documented in [docs/agv-fleet/](docs/agv-fleet/README.md). The target fleet-orchestration architecture on top of it (Open-RMF) is sketched in [docs/open-rmf/](docs/open-rmf/01-openrmf-nav2-integration.md).
+
 ## Quickstart
 
 ```bash
@@ -40,7 +42,7 @@ this will open the terminator with the commands ready to run
 | Path                          | What                                                                                   |
 | ----------------------------- | -------------------------------------------------------------------------------------- |
 | `src/workcell`                | Gazebo world (office_world.sdf) + shared workcell description                          |
-| `src/robots/agv`              | Robot description + bringup for the AGV differential-drive base                        |
+| `src/robots/agv`              | Robot description + bringup + Nav2 for the AGV differential-drive base (see [docs/agv-fleet/](docs/agv-fleet/README.md)) |
 | `src/vision`                  | nvblox launch/config                                                                   |
 | `src/isaac_ros_cumotion_fork` | Submodule, [Mike17K/isaac_ros_cumotion](https://github.com/Mike17K/isaac_ros_cumotion) |
 | `Dockerfile.cumotion_ws`      | Layer added on top of the Isaac ROS base image                                         |

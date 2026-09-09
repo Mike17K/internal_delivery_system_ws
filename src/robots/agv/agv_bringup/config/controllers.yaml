@@ -11,8 +11,13 @@
 
   diff_drive_controller:
     ros__parameters:
-      left_wheel_names: ["$(var namespace)/$(var tf_prefix)wheel_left_joint"]
-      right_wheel_names: ["$(var namespace)/$(var tf_prefix)wheel_right_joint"]
+      # Bare joint names: robot_description's URDF joints are unprefixed
+      # (see agv_description/urdf/agv_macro.xacro) - this controller_manager
+      # instance already runs scoped to this one robot's own namespace
+      # (the "/$(var namespace):" wrapper above), so there's no ambiguity
+      # to resolve by prefixing the joint name itself.
+      left_wheel_names: ["wheel_left_joint"]
+      right_wheel_names: ["wheel_right_joint"]
 
       # From the AGVv3 export (wheel joint Y offsets: +0.14 / -0.14, and
       # cylinder radius 0.02011 - see agv_description/urdf/agv_macro.xacro).
@@ -20,8 +25,11 @@
       wheel_radius: 0.02011
 
       publish_rate: 50.0
-      base_frame_id: "$(var namespace)/$(var tf_prefix)base_link"
-      odom_frame_id: "$(var namespace)/odom"
+      # Bare frame ids: this robot's own /<namespace>/tf topic is what
+      # disambiguates it from other robots, not the frame name text - see
+      # docs/agv-fleet/02-bringup-and-simulation.md.
+      base_frame_id: "base_link"
+      odom_frame_id: "odom"
 
       # TF is published by the Gazebo PosePublisher plugin instead (see
       # gz_bridge.yaml), same convention as group_a, to avoid two competing

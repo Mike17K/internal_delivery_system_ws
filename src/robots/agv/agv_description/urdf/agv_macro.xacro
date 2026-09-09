@@ -3,25 +3,43 @@
 
     <xacro:macro name="agv_robot"
         params="
-        tf_prefix=''
         namespace=''
         sim_gazebo='true'
         use_fake_hardware='false'
         simulation_controllers='$(find agv_bringup)/config/controllers.yaml'"
     >
 
-        <!-- ── Derived prefix from namespace ─────────────────────────────────────
-             All links/joints get the namespace prefix so each AGV instance has a
-             unique TF tree, same convention as group_a_macro.xacro.
+        <!-- ── Namespace strategy: topic namespacing, NOT frame-name prefixing ────
+             Link/joint names below are bare (base_link, wheel_left_joint, ...) -
+             they are NOT prefixed with ${namespace}. Multi-robot disambiguation
+             comes entirely from each robot's nodes (robot_state_publisher,
+             gz_ros2_control, the gz bridge) running within their own ROS
+             namespace and publishing to their own /<namespace>/tf topic, which
+             is the standard Nav2/ROS 2 multi-robot convention - not this repo's
+             original choice (frame-name prefixing onto one shared /tf topic).
+             Reasons this is preferred, not just "the more common way":
+               - avoids the N² problem: every robot's nav stack would otherwise
+                 have to receive and parse every OTHER robot's high-rate local
+                 TF traffic (base_link<->wheel etc.) off one shared /tf topic.
+               - one config file (nav2_params.yaml, controllers.yaml) works
+                 unmodified for every robot - frame names never differ per
+                 robot, so nothing needs $(var namespace) substitution baked
+                 into frame-id VALUES anymore.
+               - matches how gz_ros2_control/ros_gz_bridge already namespace
+                 everything else (topics) natively - frame prefixing was the
+                 one place this repo didn't follow that pattern.
+             ${namespace} is still used below, but only for the ONE thing it's
+             actually for: telling gz_ros2_control's plugin which ROS namespace
+             its own nodes/topics should live in (see the <gazebo> block at the
+             bottom) - never to build a frame or link name.
         ──────────────────────────────────────────────────────────────────────── -->
-        <xacro:property name="prefix" value="${namespace}/${tf_prefix}" />
 
         <!-- NOTE: unlike group_a (a stationary arm bolted to a fixed mount),
-             the AGV is a free-moving base: ${prefix}base_link is the URDF root
-             with NO parent joint. A `fixed` joint to a "world" link would weld
-             the chassis in place forever regardless of wheel motion, and would
+             the AGV is a free-moving base: base_link is the URDF root with NO
+             parent joint. A `fixed` joint to a "world" link would weld the
+             chassis in place forever regardless of wheel motion, and would
              fight with the live pose the Gazebo PosePublisher plugin publishes
-             on /tf. The initial spawn pose is instead given to the spawner
+             on tf. The initial spawn pose is instead given to the spawner
              (see agv_bringup/launch/bringup.launch.py, -x/-y/-z/-R/-P/-Y args). -->
 
         <!-- ── Geometry below is from the Blender/Phobos AGVv3 export
@@ -38,7 +56,7 @@
              axis URDF's <cylinder> actually uses) - corrected below.
         ──────────────────────────────────────────────────────────────────────── -->
 
-        <link name="${prefix}base_link">
+        <link name="base_link">
             <collision name="base_collision">
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.06000" />
                 <geometry>
@@ -63,7 +81,7 @@
                      model:// or package://, which depend on gz-sim's own runtime
                      URI resolver (which silently dropped this model's entire
                      scene registration for the AGV_S mesh in this environment). -->
-                <material name="${prefix}Body" />
+                <material name="Body" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
                     <mesh filename="$(find agv_description)/meshes/stl/Cube.026.stl" scale="1 1 1" />
@@ -71,7 +89,7 @@
             </visual>
         </link>
 
-        <link name="${prefix}wheel_right_link">
+        <link name="wheel_right_link">
             <collision name="wheel_right_collision">
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
@@ -92,7 +110,7 @@
                 <mass value="0.50000" />
             </inertial>
             <visual name="wheel_right_visual">
-                <material name="${prefix}Weel" />
+                <material name="Weel" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
                     <cylinder radius="0.02011" length="0.01400" />
@@ -100,15 +118,15 @@
             </visual>
         </link>
 
-        <joint name="${prefix}wheel_right_joint" type="continuous">
+        <joint name="wheel_right_joint" type="continuous">
             <limit lower="0.00000" upper="0.00000" effort="0.00000" velocity="0.00000" />
             <origin rpy="1.57080 0.00000 0.00000" xyz="0.00000 -0.14000 0.02000" />
-            <parent link="${prefix}base_link" />
-            <child link="${prefix}wheel_right_link" />
+            <parent link="base_link" />
+            <child link="wheel_right_link" />
             <axis xyz="0.00000 0.00000 1.00000" />
         </joint>
 
-        <link name="${prefix}wheel_left_link">
+        <link name="wheel_left_link">
             <collision name="wheel_left_collision">
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
@@ -122,7 +140,7 @@
                 <mass value="0.50000" />
             </inertial>
             <visual name="wheel_left_visual">
-                <material name="${prefix}Weel" />
+                <material name="Weel" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
                     <cylinder radius="0.02011" length="0.01400" />
@@ -130,11 +148,11 @@
             </visual>
         </link>
 
-        <joint name="${prefix}wheel_left_joint" type="continuous">
+        <joint name="wheel_left_joint" type="continuous">
             <limit lower="0.00000" upper="0.00000" effort="0.00000" velocity="0.00000" />
             <origin rpy="-1.57080 0.00000 0.00000" xyz="0.00000 0.14000 0.02000" />
-            <parent link="${prefix}base_link" />
-            <child link="${prefix}wheel_left_link" />
+            <parent link="base_link" />
+            <child link="wheel_left_link" />
             <axis xyz="0.00000 0.00000 1.00000" />
         </joint>
 
@@ -149,7 +167,7 @@
              vertical support and never resist the drive wheels' rolling or
              turning. Spheres, not cylinders: a caster only needs to support
              load, not roll in one particular direction. -->
-        <link name="${prefix}caster_front_link">
+        <link name="caster_front_link">
             <collision name="caster_front_collision">
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
@@ -163,7 +181,7 @@
                 <mass value="0.05000" />
             </inertial>
             <visual name="caster_front_visual">
-                <material name="${prefix}Weel" />
+                <material name="Weel" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
                     <sphere radius="0.02011" />
@@ -171,13 +189,13 @@
             </visual>
         </link>
 
-        <joint name="${prefix}caster_front_joint" type="fixed">
+        <joint name="caster_front_joint" type="fixed">
             <origin rpy="0.00000 0.00000 0.00000" xyz="0.15000 0.00000 0.02000" />
-            <parent link="${prefix}base_link" />
-            <child link="${prefix}caster_front_link" />
+            <parent link="base_link" />
+            <child link="caster_front_link" />
         </joint>
 
-        <link name="${prefix}caster_back_link">
+        <link name="caster_back_link">
             <collision name="caster_back_collision">
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
@@ -190,7 +208,7 @@
                 <mass value="0.05000" />
             </inertial>
             <visual name="caster_back_visual">
-                <material name="${prefix}Weel" />
+                <material name="Weel" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
                     <sphere radius="0.02011" />
@@ -198,13 +216,13 @@
             </visual>
         </link>
 
-        <joint name="${prefix}caster_back_joint" type="fixed">
+        <joint name="caster_back_joint" type="fixed">
             <origin rpy="0.00000 0.00000 0.00000" xyz="-0.15000 0.00000 0.02000" />
-            <parent link="${prefix}base_link" />
-            <child link="${prefix}caster_back_link" />
+            <parent link="base_link" />
+            <child link="caster_back_link" />
         </joint>
 
-        <gazebo reference="${prefix}caster_front_link">
+        <gazebo reference="caster_front_link">
             <collision name="caster_front_collision">
                 <surface>
                     <friction>
@@ -216,7 +234,7 @@
                 </surface>
             </collision>
         </gazebo>
-        <gazebo reference="${prefix}caster_back_link">
+        <gazebo reference="caster_back_link">
             <collision name="caster_back_collision">
                 <surface>
                     <friction>
@@ -238,17 +256,17 @@
              since the wheels are <cylinder> primitives (which do get
              renderer-provided UVs) - unverified from here, falls back to
              <color> if not. -->
-        <material name="${prefix}Weel">
+        <material name="Weel">
             <texture filename="$(find agv_description)/meshes/textures/AGVv3Weel.png" />
             <color rgba="0.80000 0.80000 0.80000 1.00000" />
         </material>
-        <material name="${prefix}Body">
+        <material name="Body">
             <texture filename="$(find agv_description)/meshes/textures/BodyTexture.png" />
             <color rgba="0.80000 0.80000 0.80000 1.00000" />
         </material>
 
         <!-- === ROS 2 Control ────────────────────────────────────────────────── -->
-        <ros2_control name="${prefix}hardware" type="system">
+        <ros2_control name="hardware" type="system">
             <hardware>
                 <xacro:if value="${sim_gazebo}">
                     <plugin>gz_ros2_control/GazeboSimSystem</plugin>
@@ -262,12 +280,12 @@
                     <plugin>mock_components/GenericSystem</plugin>
                 </xacro:unless>
             </hardware>
-            <joint name="${prefix}wheel_left_joint">
+            <joint name="wheel_left_joint">
                 <command_interface name="velocity" />
                 <state_interface name="position" />
                 <state_interface name="velocity" />
             </joint>
-            <joint name="${prefix}wheel_right_joint">
+            <joint name="wheel_right_joint">
                 <command_interface name="velocity" />
                 <state_interface name="position" />
                 <state_interface name="velocity" />
@@ -280,6 +298,11 @@
                 <plugin filename="gz_ros2_control-system"
                     name="gz_ros2_control::GazeboSimROS2ControlPlugin">
                     <ros>
+                        <!-- The one legitimate use of ${namespace} in this file:
+                             scopes gz_ros2_control's own nodes/topics (and, by
+                             extension, controller_manager/diff_drive_controller)
+                             under /<namespace>/... - matching every other node
+                             for this robot, all namespaced the same native way. -->
                         <namespace>${namespace}</namespace>
                     </ros>
                     <parameters>${simulation_controllers}</parameters>

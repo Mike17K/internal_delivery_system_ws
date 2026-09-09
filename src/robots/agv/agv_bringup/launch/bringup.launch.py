@@ -16,8 +16,7 @@ def get_launch_arguments() -> list[DeclareLaunchArgument]:
     args.append(DeclareLaunchArgument("sim_gazebo", default_value="false", description="Switch to true if launching inside a Gazebo Simulation environment"))
     args.append(DeclareLaunchArgument("xyz", default_value="0.0 0.0 0.0", description="Robot spawn position (x y z, space-separated) - passed to the spawner, not baked into the model"))
     args.append(DeclareLaunchArgument("rpy", default_value="0.0 0.0 0.0", description="Robot spawn orientation (roll pitch yaw, space-separated) - passed to the spawner, not baked into the model"))
-    args.append(DeclareLaunchArgument("namespace", default_value="", description="Namespace for the robot tf frames, topics and nodes"))
-    args.append(DeclareLaunchArgument("tf_prefix", default_value="", description="Prefix for all TF frames after namespace is applied"))
+    args.append(DeclareLaunchArgument("namespace", default_value="", description="Namespace for this robot's nodes and topics, including its own /<namespace>/tf"))
     return args
 
 
@@ -39,7 +38,6 @@ def launch_setup(context):
     xyz = LaunchConfiguration("xyz").perform(context)
     rpy = LaunchConfiguration("rpy").perform(context)
     namespace = LaunchConfiguration("namespace").perform(context)
-    tf_prefix = LaunchConfiguration("tf_prefix").perform(context)
 
     spawn_x, spawn_y, spawn_z = xyz.split()
     spawn_roll, spawn_pitch, spawn_yaw = rpy.split()
@@ -57,7 +55,6 @@ def launch_setup(context):
                 "use_fake_hardware": use_fake_hardware,
                 "simulation_controllers": str(controllers_file_path),
                 "namespace": namespace,
-                "tf_prefix": tf_prefix,
             },
         )
         .to_dict()
@@ -66,6 +63,14 @@ def launch_setup(context):
     gz_bridge_yaml_path = _make_param_file(os.path.join(pkg_bringup, "config", "gz_bridge.yaml"), context)
 
     sim_time_param = {"use_sim_time": LaunchConfiguration("sim_gazebo")}
+
+    # tf2_ros hardcodes an absolute "/tf"/"/tf_static" internally, which a
+    # Node's own `namespace=` does NOT touch (an already-absolute topic name
+    # is never re-namespaced) - this explicit remap to the relative "tf"/
+    # "tf_static" is what actually makes this robot's transforms land on its
+    # own /<namespace>/tf instead of the global /tf. Applied to every node
+    # here that publishes or looks up transforms.
+    tf_remappings = [("/tf", "tf"), ("/tf_static", "tf_static")]
 
     # ── 1. Robot State Publisher ─────────────────────────────────────────────
     robot_state_publisher = Node(
@@ -77,6 +82,7 @@ def launch_setup(context):
             robot_desc,
             sim_time_param,
         ],
+        remappings=tf_remappings,
     )
 
     # ── 2. Standalone Controller Manager (real hardware only) ─────────────────
@@ -91,7 +97,7 @@ def launch_setup(context):
             sim_time_param,
         ],
         condition=UnlessCondition(LaunchConfiguration("sim_gazebo")),
-        remappings=[("/robot_description", f"{namespace}/robot_description")],
+        remappings=[("/robot_description", f"{namespace}/robot_description"), *tf_remappings],
     )
 
     # ── 3. Gazebo Spawner ────────────────────────────────────────────────────

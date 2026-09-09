@@ -1,0 +1,232 @@
+import os
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition, UnlessCondition
+from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterFile
+from nav2_common.launch import RewrittenYaml
+
+
+def get_launch_arguments() -> list[DeclareLaunchArgument]:
+    args = []
+    args.append(DeclareLaunchArgument("namespace", default_value="", description="Robot namespace (e.g. agv_1) - one instance of this launch file per fleet member"))
+    args.append(DeclareLaunchArgument("use_sim_time", default_value="true", description="Use simulation (Gazebo) clock"))
+    args.append(DeclareLaunchArgument("autostart", default_value="true", description="Automatically bring the Nav2 lifecycle nodes to the active state"))
+    args.append(DeclareLaunchArgument("slam", default_value="true", description="true: run SLAM Toolbox to build/extend a map. false: localize with AMCL against the fleet-wide shared map (see localization.launch.py)"))
+    args.append(DeclareLaunchArgument("params_file", default_value=os.path.join(get_package_share_directory("agv_navigation"), "config", "nav2_params.yaml"), description="Nav2 params template"))
+    args.append(DeclareLaunchArgument("slam_params_file", default_value=os.path.join(get_package_share_directory("agv_navigation"), "config", "mapper_params_online_async.yaml"), description="SLAM Toolbox params template"))
+    args.append(DeclareLaunchArgument("initial_pose_x", default_value="0.0", description="AMCL initial pose X (ignored when slam:=true)"))
+    args.append(DeclareLaunchArgument("initial_pose_y", default_value="0.0", description="AMCL initial pose Y (ignored when slam:=true)"))
+    args.append(DeclareLaunchArgument("initial_pose_yaw", default_value="0.0", description="AMCL initial pose yaw (ignored when slam:=true)"))
+    return args
+
+
+def launch_setup(context):
+    namespace = LaunchConfiguration("namespace")
+    use_sim_time = LaunchConfiguration("use_sim_time")
+    autostart = LaunchConfiguration("autostart")
+    ns = namespace.perform(context)
+    slam_enabled = LaunchConfiguration("slam").perform(context).lower() == "true"
+
+    # tf2_ros hardcodes an absolute "/tf"/"/tf_static" internally, which a
+    # Node's own `namespace=` does NOT touch (an already-absolute topic name
+    # is never re-namespaced) - this explicit remap to the relative "tf"/
+    # "tf_static" is what actually makes this robot's Nav2 stack publish/
+    # look up transforms on its own /<namespace>/tf instead of the global
+    # /tf, matching agv_bringup/launch/bringup.launch.py's robot_state_
+    # publisher/controller_manager remap and nav2_bringup's own default
+    # multi-robot behavior. Applied to every node here that touches tf -
+    # not the lifecycle managers, which don't.
+    tf_remappings = [("/tf", "tf"), ("/tf_static", "tf_static")]
+
+    # ── Resolve params files ─────────────────────────────────────────────────
+    # Two things happen here, composed the same way nav2_bringup itself does:
+    #   1. RewrittenYaml's root_key re-keys the template's top-level node
+    #      sections (amcl:, controller_server:, ...) so they match this
+    #      robot's actual namespaced node names (e.g. /agv_1/amcl).
+    #   2. ParameterFile(allow_substs=True) resolves the $(var namespace)/
+    #      $(var initial_pose_*) tokens embedded in the template's
+    #      initial-pose values against this launch context's
+    #      LaunchConfigurations - the same mechanism agv_bringup/launch/
+    #      bringup.launch.py already uses for controllers.yaml, kept
+    #      consistent rather than introducing a second templating idiom.
+    #      (Frame ids in nav2_params.yaml are bare now - base_link/odom -
+    #      so they don't need per-robot substitution at all anymore.)
+    # autostart isn't a key in nav2_params.yaml itself - it's only meaningful
+    # to the lifecycle managers below, which get it directly via their own
+    # inline parameters dict.
+    param_rewrites = {
+        "use_sim_time": use_sim_time,
+    }
+
+    configured_params = ParameterFile(
+        RewrittenYaml(
+            source_file=LaunchConfiguration("params_file"),
+            root_key=namespace,
+            param_rewrites=param_rewrites,
+            convert_types=True,
+        ),
+        allow_substs=True,
+    )
+
+    configured_slam_params = ParameterFile(
+        RewrittenYaml(
+            source_file=LaunchConfiguration("slam_params_file"),
+            root_key=namespace,
+            param_rewrites={"use_sim_time": use_sim_time},
+            convert_types=True,
+        ),
+        allow_substs=True,
+    )
+
+    sim_time_param = {"use_sim_time": use_sim_time}
+
+    # ── Localization: SLAM Toolbox (mapping) XOR AMCL (against the shared map) ──
+    slam_toolbox_node = Node(
+        package="slam_toolbox",
+        executable="async_slam_toolbox_node",
+        name="slam_toolbox",
+        namespace=namespace,
+        output="screen",
+        parameters=[configured_slam_params, sim_time_param],
+        remappings=tf_remappings,
+        condition=IfCondition(LaunchConfiguration("slam")),
+    )
+
+    lifecycle_manager_slam = Node(
+        package="nav2_lifecycle_manager",
+        executable="lifecycle_manager",
+        name="lifecycle_manager_slam",
+        namespace=namespace,
+        output="screen",
+        parameters=[{"autostart": autostart, "node_names": ["slam_toolbox"]}, sim_time_param],
+        condition=IfCondition(LaunchConfiguration("slam")),
+    )
+
+    amcl_node = Node(
+        package="nav2_amcl",
+        executable="amcl",
+        name="amcl",
+        namespace=namespace,
+        output="screen",
+        parameters=[configured_params, sim_time_param],
+        remappings=tf_remappings,
+        condition=UnlessCondition(LaunchConfiguration("slam")),
+    )
+
+    lifecycle_manager_localization = Node(
+        package="nav2_lifecycle_manager",
+        executable="lifecycle_manager",
+        name="lifecycle_manager_localization",
+        namespace=namespace,
+        output="screen",
+        parameters=[{"autostart": autostart, "node_names": ["amcl"]}, sim_time_param],
+        condition=UnlessCondition(LaunchConfiguration("slam")),
+    )
+
+    # ── Core navigation stack (always on, regardless of slam mode) ──────────
+    navigation_lifecycle_nodes = [
+        "controller_server",
+        "planner_server",
+        "smoother_server",
+        "behavior_server",
+        "bt_navigator",
+        "waypoint_follower",
+        "velocity_smoother",
+    ]
+
+    navigation_nodes = [
+        Node(
+            package="nav2_controller",
+            executable="controller_server",
+            name="controller_server",
+            namespace=namespace,
+            output="screen",
+            parameters=[configured_params, sim_time_param],
+            # Raw output goes to cmd_vel_nav; velocity_smoother (below)
+            # consumes that and republishes the smoothed result as cmd_vel,
+            # which is what diff_drive_controller actually subscribes to.
+            remappings=[("cmd_vel", "cmd_vel_nav"), *tf_remappings],
+        ),
+        Node(
+            package="nav2_planner",
+            executable="planner_server",
+            name="planner_server",
+            namespace=namespace,
+            output="screen",
+            parameters=[configured_params, sim_time_param],
+            remappings=tf_remappings,
+        ),
+        Node(
+            package="nav2_smoother",
+            executable="smoother_server",
+            name="smoother_server",
+            namespace=namespace,
+            output="screen",
+            parameters=[configured_params, sim_time_param],
+            remappings=tf_remappings,
+        ),
+        Node(
+            package="nav2_behaviors",
+            executable="behavior_server",
+            name="behavior_server",
+            namespace=namespace,
+            output="screen",
+            parameters=[configured_params, sim_time_param],
+            remappings=tf_remappings,
+        ),
+        Node(
+            package="nav2_bt_navigator",
+            executable="bt_navigator",
+            name="bt_navigator",
+            namespace=namespace,
+            output="screen",
+            parameters=[configured_params, sim_time_param],
+            remappings=tf_remappings,
+        ),
+        Node(
+            package="nav2_waypoint_follower",
+            executable="waypoint_follower",
+            name="waypoint_follower",
+            namespace=namespace,
+            output="screen",
+            parameters=[configured_params, sim_time_param],
+            remappings=tf_remappings,
+        ),
+        Node(
+            package="nav2_velocity_smoother",
+            executable="velocity_smoother",
+            name="velocity_smoother",
+            namespace=namespace,
+            output="screen",
+            parameters=[configured_params, sim_time_param],
+            remappings=[("cmd_vel", "cmd_vel_nav"), ("cmd_vel_smoothed", "cmd_vel"), *tf_remappings],
+        ),
+        Node(
+            package="nav2_lifecycle_manager",
+            executable="lifecycle_manager",
+            name="lifecycle_manager_navigation",
+            namespace=namespace,
+            output="screen",
+            parameters=[{"autostart": autostart, "node_names": navigation_lifecycle_nodes}, sim_time_param],
+        ),
+    ]
+
+    return [
+        slam_toolbox_node,
+        lifecycle_manager_slam,
+        amcl_node,
+        lifecycle_manager_localization,
+        *navigation_nodes,
+    ]
+
+
+def generate_launch_description():
+    return LaunchDescription(
+        [
+            *get_launch_arguments(),
+            OpaqueFunction(function=launch_setup),
+        ]
+    )
