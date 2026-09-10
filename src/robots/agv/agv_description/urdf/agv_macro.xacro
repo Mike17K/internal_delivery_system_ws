@@ -3,25 +3,43 @@
 
     <xacro:macro name="agv_robot"
         params="
-        tf_prefix=''
         namespace=''
         sim_gazebo='true'
         use_fake_hardware='false'
         simulation_controllers='$(find agv_bringup)/config/controllers.yaml'"
     >
 
-        <!-- ── Derived prefix from namespace ─────────────────────────────────────
-             All links/joints get the namespace prefix so each AGV instance has a
-             unique TF tree, same convention as group_a_macro.xacro.
+        <!-- ── Namespace strategy: topic namespacing, NOT frame-name prefixing ────
+             Link/joint names below are bare (base_link, wheel_left_joint, ...) -
+             they are NOT prefixed with ${namespace}. Multi-robot disambiguation
+             comes entirely from each robot's nodes (robot_state_publisher,
+             gz_ros2_control, the gz bridge) running within their own ROS
+             namespace and publishing to their own /<namespace>/tf topic, which
+             is the standard Nav2/ROS 2 multi-robot convention - not this repo's
+             original choice (frame-name prefixing onto one shared /tf topic).
+             Reasons this is preferred, not just "the more common way":
+               - avoids the N² problem: every robot's nav stack would otherwise
+                 have to receive and parse every OTHER robot's high-rate local
+                 TF traffic (base_link<->wheel etc.) off one shared /tf topic.
+               - one config file (nav2_params.yaml, controllers.yaml) works
+                 unmodified for every robot - frame names never differ per
+                 robot, so nothing needs $(var namespace) substitution baked
+                 into frame-id VALUES anymore.
+               - matches how gz_ros2_control/ros_gz_bridge already namespace
+                 everything else (topics) natively - frame prefixing was the
+                 one place this repo didn't follow that pattern.
+             ${namespace} is still used below, but only for the ONE thing it's
+             actually for: telling gz_ros2_control's plugin which ROS namespace
+             its own nodes/topics should live in (see the <gazebo> block at the
+             bottom) - never to build a frame or link name.
         ──────────────────────────────────────────────────────────────────────── -->
-        <xacro:property name="prefix" value="${namespace}/${tf_prefix}" />
 
         <!-- NOTE: unlike group_a (a stationary arm bolted to a fixed mount),
-             the AGV is a free-moving base: ${prefix}base_link is the URDF root
-             with NO parent joint. A `fixed` joint to a "world" link would weld
-             the chassis in place forever regardless of wheel motion, and would
+             the AGV is a free-moving base: base_link is the URDF root with NO
+             parent joint. A `fixed` joint to a "world" link would weld the
+             chassis in place forever regardless of wheel motion, and would
              fight with the live pose the Gazebo PosePublisher plugin publishes
-             on /tf. The initial spawn pose is instead given to the spawner
+             on tf. The initial spawn pose is instead given to the spawner
              (see agv_bringup/launch/bringup.launch.py, -x/-y/-z/-R/-P/-Y args). -->
 
         <!-- ── Geometry below is from the Blender/Phobos AGVv3 export
@@ -38,7 +56,7 @@
              axis URDF's <cylinder> actually uses) - corrected below.
         ──────────────────────────────────────────────────────────────────────── -->
 
-        <link name="${prefix}base_link">
+        <link name="base_link">
             <collision name="base_collision">
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.06000" />
                 <geometry>
@@ -53,7 +71,8 @@
                      collision box needed for AGV_S (there, the source didn't
                      even get the collision right either; here it did, but
                      inertial still has the stale "0 0 0" from that pattern). -->
-                <inertia ixx="0.06103" ixy="0.00000" ixz="0.00000" iyy="0.11154" iyz="0.00000" izz="0.15573" />
+                <inertia ixx="0.06103" ixy="0.00000" ixz="0.00000" iyy="0.11154" iyz="0.00000"
+                    izz="0.15573" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.06000" />
                 <mass value="10.00000" />
             </inertial>
@@ -63,15 +82,15 @@
                      model:// or package://, which depend on gz-sim's own runtime
                      URI resolver (which silently dropped this model's entire
                      scene registration for the AGV_S mesh in this environment). -->
-                <material name="${prefix}Body" />
+                <material name="Body" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
-                    <mesh filename="$(find agv_description)/meshes/stl/Cube.026.stl" scale="1 1 1" />
+                    <mesh filename="package://agv_description/meshes/stl/Cube.026.stl" scale="1 1 1" />
                 </geometry>
             </visual>
         </link>
 
-        <link name="${prefix}wheel_right_link">
+        <link name="wheel_right_link">
             <collision name="wheel_right_collision">
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
@@ -87,12 +106,13 @@
                      already aligns that to world Y. The tensor's "along-axis"
                      value belongs on izz, not iyy - recomputed directly from
                      r=0.02011, L=0.014, m=0.5 (Izz=0.5mr^2, Ixx=Iyy=m(3r^2+L^2)/12). -->
-                <inertia ixx="0.00006" ixy="0.00000" ixz="0.00000" iyy="0.00006" iyz="0.00000" izz="0.00010" />
+                <inertia ixx="0.00006" ixy="0.00000" ixz="0.00000" iyy="0.00006" iyz="0.00000"
+                    izz="0.00010" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <mass value="0.50000" />
             </inertial>
             <visual name="wheel_right_visual">
-                <material name="${prefix}Weel" />
+                <material name="Weel" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
                     <cylinder radius="0.02011" length="0.01400" />
@@ -100,15 +120,50 @@
             </visual>
         </link>
 
-        <joint name="${prefix}wheel_right_joint" type="continuous">
-            <limit lower="0.00000" upper="0.00000" effort="0.00000" velocity="0.00000" />
+        <joint name="wheel_right_joint" type="continuous">
+            <!-- The AGVv3 export wrote this as all-zeros. On a `continuous`
+                 joint URDF needs no <limit> at all, but the zeros were not
+                 inert: gz-sim clamps applied joint torque to `effort` and the
+                 velocity command to `velocity`, so the wheels received exactly
+                 zero of both. diff_drive_controller ran normally and wrote its
+                 commands to the joints - odometry flowed, /cmd_vel had a live
+                 subscriber - while the robot never moved and joint_states
+                 reported wheel velocities of ~1e-17 rad/s. If the robot ever
+                 goes inert again with a healthy-looking control chain, look
+                 here first.
+                 velocity: 30 rad/s ~= 0.6 m/s at r=0.02011, just above the
+                 0.5 m/s ceiling in nav2_params.yaml/controllers.yaml.
+                 effort: 10 N-m per wheel, ~100x the ~0.107 N-m needed to
+                 accelerate this 10.6 kg base at the smoother's 1.0 m/s^2, so
+                 the limit never becomes the binding constraint on ramps or
+                 small obstacles. -->
+            <limit effort="10.0" velocity="30.0" />
             <origin rpy="1.57080 0.00000 0.00000" xyz="0.00000 -0.14000 0.02000" />
-            <parent link="${prefix}base_link" />
-            <child link="${prefix}wheel_right_link" />
-            <axis xyz="0.00000 0.00000 1.00000" />
+            <parent link="base_link" />
+            <child link="wheel_right_link" />
+            <!-- NOTE the -1 on Z, which is NOT what the AGVv3 export wrote.
+                 The export mirrored the two wheels' origins (+1.5708 rpy here,
+                 -1.5708 on wheel_left_joint), so an identical local "0 0 1"
+                 axis on both pointed along world -Y here and +Y on the left -
+                 the two joint axes were antiparallel.
+                 Rolling forward is positive rotation about +Y (w = v/R), and
+                 diff_drive_controller sends both wheels the SAME positive
+                 command for forward motion, so the left wheel rolled forward
+                 while this one rolled backward: the robot turned clockwise in
+                 place on any linear.x command.
+                 Worse, it did so silently. Both joints reported the same
+                 positive velocity, so the controller integrated a textbook
+                 straight line - odometry read 40 m of travel with y at 1e-10
+                 while the robot had not left its spawn point. Do not trust
+                 /odom to catch a regression here; check that the wheels turn
+                 the same way in the Gazebo GUI.
+                 Flipping the axis rather than the origin rpy leaves the
+                 exported link frames untouched (the wheel is a symmetric
+                 cylinder, so the mirrored origin is otherwise harmless). -->
+            <axis xyz="0.00000 0.00000 -1.00000" />
         </joint>
 
-        <link name="${prefix}wheel_left_link">
+        <link name="wheel_left_link">
             <collision name="wheel_left_collision">
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
@@ -117,12 +172,13 @@
             </collision>
             <inertial>
                 <!-- Same axis correction as wheel_right_link above. -->
-                <inertia ixx="0.00006" ixy="0.00000" ixz="0.00000" iyy="0.00006" iyz="0.00000" izz="0.00010" />
+                <inertia ixx="0.00006" ixy="0.00000" ixz="0.00000" iyy="0.00006" iyz="0.00000"
+                    izz="0.00010" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <mass value="0.50000" />
             </inertial>
             <visual name="wheel_left_visual">
-                <material name="${prefix}Weel" />
+                <material name="Weel" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
                     <cylinder radius="0.02011" length="0.01400" />
@@ -130,11 +186,27 @@
             </visual>
         </link>
 
-        <joint name="${prefix}wheel_left_joint" type="continuous">
-            <limit lower="0.00000" upper="0.00000" effort="0.00000" velocity="0.00000" />
+        <joint name="wheel_left_joint" type="continuous">
+            <!-- The AGVv3 export wrote this as all-zeros. On a `continuous`
+                 joint URDF needs no <limit> at all, but the zeros were not
+                 inert: gz-sim clamps applied joint torque to `effort` and the
+                 velocity command to `velocity`, so the wheels received exactly
+                 zero of both. diff_drive_controller ran normally and wrote its
+                 commands to the joints - odometry flowed, /cmd_vel had a live
+                 subscriber - while the robot never moved and joint_states
+                 reported wheel velocities of ~1e-17 rad/s. If the robot ever
+                 goes inert again with a healthy-looking control chain, look
+                 here first.
+                 velocity: 30 rad/s ~= 0.6 m/s at r=0.02011, just above the
+                 0.5 m/s ceiling in nav2_params.yaml/controllers.yaml.
+                 effort: 10 N-m per wheel, ~100x the ~0.107 N-m needed to
+                 accelerate this 10.6 kg base at the smoother's 1.0 m/s^2, so
+                 the limit never becomes the binding constraint on ramps or
+                 small obstacles. -->
+            <limit effort="10.0" velocity="30.0" />
             <origin rpy="-1.57080 0.00000 0.00000" xyz="0.00000 0.14000 0.02000" />
-            <parent link="${prefix}base_link" />
-            <child link="${prefix}wheel_left_link" />
+            <parent link="base_link" />
+            <child link="wheel_left_link" />
             <axis xyz="0.00000 0.00000 1.00000" />
         </joint>
 
@@ -149,7 +221,7 @@
              vertical support and never resist the drive wheels' rolling or
              turning. Spheres, not cylinders: a caster only needs to support
              load, not roll in one particular direction. -->
-        <link name="${prefix}caster_front_link">
+        <link name="caster_front_link">
             <collision name="caster_front_collision">
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
@@ -158,12 +230,13 @@
             </collision>
             <inertial>
                 <!-- Solid-sphere inertia for r=0.02011, m=0.05 (I=0.4*m*r^2). -->
-                <inertia ixx="0.00001" ixy="0.00000" ixz="0.00000" iyy="0.00001" iyz="0.00000" izz="0.00001" />
+                <inertia ixx="0.00001" ixy="0.00000" ixz="0.00000" iyy="0.00001" iyz="0.00000"
+                    izz="0.00001" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <mass value="0.05000" />
             </inertial>
             <visual name="caster_front_visual">
-                <material name="${prefix}Weel" />
+                <material name="Weel" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
                     <sphere radius="0.02011" />
@@ -171,13 +244,13 @@
             </visual>
         </link>
 
-        <joint name="${prefix}caster_front_joint" type="fixed">
+        <joint name="caster_front_joint" type="fixed">
             <origin rpy="0.00000 0.00000 0.00000" xyz="0.15000 0.00000 0.02000" />
-            <parent link="${prefix}base_link" />
-            <child link="${prefix}caster_front_link" />
+            <parent link="base_link" />
+            <child link="caster_front_link" />
         </joint>
 
-        <link name="${prefix}caster_back_link">
+        <link name="caster_back_link">
             <collision name="caster_back_collision">
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
@@ -185,12 +258,13 @@
                 </geometry>
             </collision>
             <inertial>
-                <inertia ixx="0.00001" ixy="0.00000" ixz="0.00000" iyy="0.00001" iyz="0.00000" izz="0.00001" />
+                <inertia ixx="0.00001" ixy="0.00000" ixz="0.00000" iyy="0.00001" iyz="0.00000"
+                    izz="0.00001" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <mass value="0.05000" />
             </inertial>
             <visual name="caster_back_visual">
-                <material name="${prefix}Weel" />
+                <material name="Weel" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
                     <sphere radius="0.02011" />
@@ -198,13 +272,61 @@
             </visual>
         </link>
 
-        <joint name="${prefix}caster_back_joint" type="fixed">
+        <joint name="caster_back_joint" type="fixed">
             <origin rpy="0.00000 0.00000 0.00000" xyz="-0.15000 0.00000 0.02000" />
-            <parent link="${prefix}base_link" />
-            <child link="${prefix}caster_back_link" />
+            <parent link="base_link" />
+            <child link="caster_back_link" />
         </joint>
 
-        <gazebo reference="${prefix}caster_front_link">
+        <!-- ── 2D Lidar ────────────────────────────────────────────────────────
+             Fills the gap flagged in docs/agv-fleet/04-known-issues-and-next-
+             steps.md: nav2_params.yaml's costmaps/AMCL were already configured
+             to expect a "scan" topic (relative - resolves to /<namespace>/scan
+             under each robot's own namespace, no special-casing needed given
+             this fleet's bare-frame-id/per-namespace-topic TF convention), but
+             nothing published it. Mounted centered, on top of the chassis
+             (body top is at z=0.11 - see agv_macro.xacro's base_link comment
+             history; 0.02 m standoff above that). -->
+        <link name="lidar_link">
+            <collision name="lidar_collision">
+                <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+                <geometry>
+                    <cylinder radius="0.03000" length="0.04000" />
+                </geometry>
+            </collision>
+            <inertial>
+                <!-- Solid-cylinder inertia for r=0.03, L=0.04, m=0.05 - small
+                     enough to be dynamically negligible next to the 10 kg
+                     body, but real/non-zero (see docs/agv-fleet/
+                     01-robot-description.md's note on the original AGV
+                     export's zero-inertia crash - never leave this at 0). -->
+                <inertia ixx="0.00002" ixy="0.00000" ixz="0.00000" iyy="0.00002" iyz="0.00000"
+                    izz="0.00002" />
+                <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+                <mass value="0.05000" />
+            </inertial>
+            <visual name="lidar_visual">
+                <material name="Lidar" />
+                <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+                <geometry>
+                    <cylinder radius="0.03000" length="0.04000" />
+                </geometry>
+            </visual>
+        </link>
+
+        <joint name="lidar_joint" type="fixed">
+            <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.13000" />
+            <parent link="base_link" />
+            <child link="lidar_link" />
+        </joint>
+
+        <gazebo reference="caster_front_link">
+            <!-- Without this, URDF->SDF conversion lumps fixed-jointed links
+                 into their parent (an optimization) - harmless here since
+                 nothing looks up a "caster_front_link" tf frame, but kept for
+                 consistency with lidar_link below, where the exact same
+                 lumping silently broke sensor data (see that comment). -->
+            <disableFixedJointLumping>true</disableFixedJointLumping>
             <collision name="caster_front_collision">
                 <surface>
                     <friction>
@@ -216,7 +338,8 @@
                 </surface>
             </collision>
         </gazebo>
-        <gazebo reference="${prefix}caster_back_link">
+        <gazebo reference="caster_back_link">
+            <disableFixedJointLumping>true</disableFixedJointLumping>
             <collision name="caster_back_collision">
                 <surface>
                     <friction>
@@ -238,17 +361,20 @@
              since the wheels are <cylinder> primitives (which do get
              renderer-provided UVs) - unverified from here, falls back to
              <color> if not. -->
-        <material name="${prefix}Weel">
-            <texture filename="$(find agv_description)/meshes/textures/AGVv3Weel.png" />
+        <material name="Weel">
+            <texture filename="package://agv_description/meshes/textures/AGVv3Weel.png" />
             <color rgba="0.80000 0.80000 0.80000 1.00000" />
         </material>
-        <material name="${prefix}Body">
-            <texture filename="$(find agv_description)/meshes/textures/BodyTexture.png" />
+        <material name="Body">
+            <texture filename="package://agv_description/meshes/textures/BodyTexture.png" />
             <color rgba="0.80000 0.80000 0.80000 1.00000" />
+        </material>
+        <material name="Lidar">
+            <color rgba="0.05000 0.05000 0.05000 1.00000" />
         </material>
 
         <!-- === ROS 2 Control ────────────────────────────────────────────────── -->
-        <ros2_control name="${prefix}hardware" type="system">
+        <ros2_control name="hardware" type="system">
             <hardware>
                 <xacro:if value="${sim_gazebo}">
                     <plugin>gz_ros2_control/GazeboSimSystem</plugin>
@@ -262,12 +388,12 @@
                     <plugin>mock_components/GenericSystem</plugin>
                 </xacro:unless>
             </hardware>
-            <joint name="${prefix}wheel_left_joint">
+            <joint name="wheel_left_joint">
                 <command_interface name="velocity" />
                 <state_interface name="position" />
                 <state_interface name="velocity" />
             </joint>
-            <joint name="${prefix}wheel_right_joint">
+            <joint name="wheel_right_joint">
                 <command_interface name="velocity" />
                 <state_interface name="position" />
                 <state_interface name="velocity" />
@@ -280,6 +406,36 @@
                 <plugin filename="gz_ros2_control-system"
                     name="gz_ros2_control::GazeboSimROS2ControlPlugin">
                     <ros>
+                        <!-- Scopes gz_ros2_control's own nodes/topics (and, by
+                             extension, controller_manager/diff_drive_controller)
+                             under /<namespace>/... - matching every other node
+                             for this robot, all namespaced the same native way.
+                             (${namespace} is also used below, in the lidar
+                             sensor's <topic>, for the same reason: an explicit
+                             per-robot GZ topic, not a frame/link name.)
+
+                             DO NOT add <remapping>/tf:=tf</remapping> here.
+                             It was tried (twice) to get
+                             diff_drive_controller's odom tf onto this robot's
+                             own topic and it does NOT work: a <remapping>
+                             here configures the controller_manager *process*,
+                             while the tf broadcaster that needs remapping
+                             belongs to the diff_drive_controller *node* that
+                             controller_manager constructs inside that process.
+                             Confirmed live - the remap was visibly present in
+                             controller_manager's launch args while the "odom"
+                             frame still never appeared on /<namespace>/tf, and
+                             controller_manager itself logged that
+                             process-level remaps are deprecated for exactly
+                             this reason. The working fix is the spawner's
+                             "controller ros args" flag in
+                             agv_bringup/launch/bringup.launch.py, which
+                             attaches the remap to the controller node instead
+                             of to this process.
+                             The <namespace> below is a different matter and is
+                             both correct and required - it is what scopes this
+                             plugin's own controller_manager (and therefore the
+                             controller nodes it builds) to /<namespace>/... -->
                         <namespace>${namespace}</namespace>
                     </ros>
                     <parameters>${simulation_controllers}</parameters>
@@ -294,6 +450,87 @@
                     <use_pose_vector_msg>true</use_pose_vector_msg>
                     <update_frequency>50</update_frequency>
                 </plugin>
+            </gazebo>
+
+            <!-- gpu_lidar: gz-sim's standard 2D/3D lidar sensor type. Despite
+                 the name it doesn't require real GPU hardware - it runs via
+                 the Sensors system's render pipeline (already loaded by
+                 office_world.sdf's gz-sim-sensors-system plugin), which works
+                 under the software (llvmpipe) rendering fallback this
+                 environment has been using all along for visuals - just
+                 slower, not broken.
+                 <topic> is set to an explicit, absolute, per-robot path
+                 (/model/<namespace>/scan) rather than left to gz-sim's default
+                 sensor-topic naming - same reasoning as the pose/tf bridge
+                 entries in agv_bringup/config/gz_bridge.yaml: an absolute
+                 path is unambiguous, where relying on a specific version's
+                 default topic-scoping behavior has bitten this project before
+                 (see docs/agv-fleet/01-robot-description.md's mesh-loading
+                 section). Bridged to ROS as /<namespace>/scan in gz_bridge.yaml -
+                 nav2_params.yaml's AMCL/costmaps already expect a relative
+                 "scan" topic, which resolves correctly under each robot's own
+                 namespace with no further changes needed there.
+
+                 <gz_frame_id> is what makes the scan frame_id usable, and
+                 it is not optional. gz-sim otherwise stamps sensor messages
+                 with the sensor's *scoped entity name* -
+                 "<model>/<link>/<sensor>", i.e. "agv_1/base_link/lidar" -
+                 which matches nothing robot_state_publisher publishes, so
+                 slam_toolbox logged "Message Filter dropping message: frame
+                 '.../base_link/lidar' ... queue is full" forever. Note the
+                 scoped name would still have been wrong
+                 ("agv_1/lidar_link/lidar") even with lumping disabled, which
+                 is why an earlier <disableFixedJointLumping>-only attempt
+                 changed nothing: the frame name was never about lumping.
+                 <gz_frame_id> overrides the stamp outright with the real URDF
+                 link name. CONFIRMED on a live run - the scan now arrives as
+                 frame "lidar_link".
+                 gz-sim logs a warning about this element ("XML
+                 Element[gz_frame_id], child of element[sensor], not defined
+                 in SDF. Copying[gz_frame_id] as children of [sensor]") on
+                 every spawn. That warning is expected and harmless: copying
+                 the unknown element through to the sensor is exactly how it
+                 reaches the sensor system, and the corrected frame in the
+                 output proves it was read.
+                 <disableFixedJointLumping> is kept, on lidar_joint as well as
+                 the link (sdformat's URDF converter reads it off the JOINT -
+                 the original link-only placement was a no-op), so the SDF
+                 keeps a real lidar_link to hang the sensor off rather than a
+                 sensor re-parented onto base_link with a baked-in offset. -->
+
+            <gazebo reference="lidar_joint">
+                <disableFixedJointLumping>true</disableFixedJointLumping>
+            </gazebo>
+
+            <gazebo reference="lidar_link">
+                <disableFixedJointLumping>true</disableFixedJointLumping>
+                <sensor name="lidar" type="gpu_lidar">
+                    <always_on>true</always_on>
+                    <visualize>false</visualize>
+                    <update_rate>10</update_rate>
+                    <topic>/model/${namespace}/scan</topic>
+                    <gz_frame_id>lidar_link</gz_frame_id>
+                    <lidar>
+                        <scan>
+                            <horizontal>
+                                <samples>360</samples>
+                                <resolution>1</resolution>
+                                <min_angle>-3.14159265</min_angle>
+                                <max_angle>3.14159265</max_angle>
+                            </horizontal>
+                        </scan>
+                        <range>
+                            <min>0.12</min>
+                            <max>10.0</max>
+                            <resolution>0.01</resolution>
+                        </range>
+                        <noise>
+                            <type>gaussian</type>
+                            <mean>0.0</mean>
+                            <stddev>0.01</stddev>
+                        </noise>
+                    </lidar>
+                </sensor>
             </gazebo>
         </xacro:if>
 

@@ -4,7 +4,6 @@
   <!-- 1. Launch-injected arguments -->
   <xacro:arg name="sim_gazebo" default="false" />
   <xacro:arg name="use_fake_hardware" default="true" />
-  <xacro:arg name="tf_prefix" default="" />
   <xacro:arg name="namespace" default="" />
   <xacro:arg name="simulation_controllers"
     default='$(find agv_bringup)/config/controllers.yaml' />
@@ -14,11 +13,13 @@
 
   <!-- 3. Instantiate the AGV. No "world" link and no fixed joint to it here -
        this is a free-moving base, so base_link is the root of the tree. The
-       spawn pose is set by the spawner, not baked into the model. -->
+       spawn pose is set by the spawner, not baked into the model. Link/joint
+       names are bare (base_link, wheel_left_joint, ...) - multi-robot
+       disambiguation comes from ${namespace} scoping this robot's nodes and
+       topics (including /<namespace>/tf), not from prefixing frame names. -->
   <xacro:agv_robot
     sim_gazebo="$(arg sim_gazebo)"
     use_fake_hardware="$(arg use_fake_hardware)"
-    tf_prefix="$(arg tf_prefix)"
     namespace="$(arg namespace)"
     simulation_controllers="$(arg simulation_controllers)"
   />

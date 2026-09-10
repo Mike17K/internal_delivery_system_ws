@@ -55,15 +55,15 @@ enter
 broadcast_off
 
 move_up
-paste_cmd 'source install/setup.bash && ros2 launch workcell_bringup workcell.launch.py sim_gazebo:=true use_fake_hardware:=false'
+paste_cmd 'source install/setup.bash && ros2 launch workcell_bringup workcell.launch.py sim_gazebo:=true use_fake_hardware:=false slam:=false map:=/workspaces/isaac_ros-dev/src/robots/agv/agv_navigation/maps/office_world.yaml'
 
 move_right
 # planning_bringup (cuMotion, group_a arm planning) was legacy and has been removed
-# paste_cmd 'source install/setup.bash && ros2 launch planning_bringup cumotion.launch.py'
+paste_cmd 'source install/setup.bash && ros2 launch agv_navigation teleop.launch.py namespace:=agv_1'
 
 move_down
 # workcell_bringup rviz.launch.py (group_a MoveIt RViz view) was legacy and has been removed
 # paste_cmd 'source install/setup.bash && ros2 launch workcell_bringup rviz.launch.py rviz_namespace:=robot_1'
 
 move_left
-paste_cmd 'source install/setup.bash && ros2 launch vision nvblox.launch.py'
+paste_cmd 'source install/setup.bash && ros2 run rviz2 rviz2 -d scripts/config/rviz_slam.rviz --ros-args -r /tf:=/agv_1/tf -r /tf_static:=/agv_1/tf_static'

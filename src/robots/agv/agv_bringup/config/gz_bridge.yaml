@@ -8,10 +8,25 @@
   gz_type_name: "gz.msgs.Pose_V"
   direction: GZ_TO_ROS
 
-# ── TF (from PosePublisher plugin) ─────────────────────────────────────────────
+# PosePublisher's tf output is deliberately NOT bridged into ROS (it used to
+# be, as "/$(var namespace)/tf" - removed). PosePublisher mirrors ground-
+# truth simulator poses; it has no concept of "odometry" and would publish
+# base_link relative to something other than "odom" (world/model-relative).
+# With diff_drive_controller now the tf source for odom -> base_link
+# (controllers.yaml's enable_odom_tf: true) and robot_state_publisher for
+# base_link -> {wheels, lidar_link, casters}, bridging PosePublisher's tf
+# too would mean two sources independently claiming a (different) parent
+# for base_link - a real conflict, not just redundancy. The /pose bridge
+# above is unaffected (independent gz topic, ground-truth data still
+# available for whoever wants it later - RMF, monitoring, etc).
 
-- ros_topic_name: "/tf"
-  gz_topic_name: "/$(var namespace)/tf"
-  ros_type_name: "tf2_msgs/msg/TFMessage"
-  gz_type_name: "gz.msgs.Pose_V"
+# ── Lidar (from the gpu_lidar sensor on lidar_link) ─────────────────────────────
+# nav2_params.yaml's AMCL/costmaps subscribe to a relative "scan" topic, which
+# resolves to /<namespace>/scan under each robot's own namespace - matching
+# this ROS-side topic exactly.
+
+- ros_topic_name: "/$(var namespace)/scan"
+  gz_topic_name: "/model/$(var namespace)/scan"
+  ros_type_name: "sensor_msgs/msg/LaserScan"
+  gz_type_name: "gz.msgs.LaserScan"
   direction: GZ_TO_ROS
