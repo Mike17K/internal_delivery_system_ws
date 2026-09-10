@@ -134,7 +134,25 @@ def launch_setup(context):
         namespace=namespace,
         output="screen",
         parameters=[configured_slam_params, sim_time_param],
-        remappings=tf_remappings,
+        # slam_toolbox is internally inconsistent about its own namespace: it
+        # PUBLISHES the occupancy grid on a hardcoded absolute "/map" (which
+        # `namespace=` cannot touch, since an already-absolute name is never
+        # re-namespaced), while the nav2 MapSaver it owns for `use_map_saver`
+        # SUBSCRIBES to a relative "map" - i.e. /<namespace>/map. Left alone,
+        # those two never meet, and it fails in two places at once:
+        #   1. /agv_1/slam_toolbox/save_map returns 255
+        #      (RESULT_UNDEFINED_FAILURE) forever. The saver is waiting for a
+        #      map on /agv_1/map that nothing publishes - it is NOT a bad
+        #      output path, which is the obvious first guess and is wrong.
+        #   2. global_costmap's static layer stays empty for the whole
+        #      mapping run, since navigation.launch.py points map_topic at
+        #      this robot's own /<namespace>/map (see the map_topic rewrite
+        #      above).
+        # Remapping the publisher down into the namespace fixes both and is
+        # what the rest of this stack already assumes. Do not "simplify" it
+        # back to the global /map: that is map_server's topic under
+        # slam:=false, and two robots mapping at once would collide on it.
+        remappings=tf_remappings + [("/map", "map"), ("/map_metadata", "map_metadata")],
         condition=IfCondition(LaunchConfiguration("slam")),
     )
 
