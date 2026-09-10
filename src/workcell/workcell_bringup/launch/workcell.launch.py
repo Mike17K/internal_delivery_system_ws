@@ -102,7 +102,7 @@ def generate_launch_description():
     # 7. Ορισμός των Ρομπότ στην Κυψέλη Εργασίας
     robots_config = [
         {"name": "agv_1", "xyz": "0.0 0.0 0.0", "rpy": "0.0 0.0 0.0"},
-        {"name": "agv_2", "xyz": "1.0 0.0 0.0", "rpy": "0.0 0.0 0.0"},
+        # {"name": "agv_2", "xyz": "1.0 0.0 0.0", "rpy": "0.0 0.0 0.0"},
     ]
 
     pkg_agv_bringup_share = get_package_share_directory("agv_bringup")

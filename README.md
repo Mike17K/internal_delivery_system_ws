@@ -82,6 +82,50 @@ ros2 launch workcell_bringup workcell.launch.py sim_gazebo:=true use_fake_hardwa
 ros2 launch vision nvblox.launch.py
 ```
 
+## Mapping the world (SLAM)
+
+`office_world` has no map, so `workcell.launch.py` defaults to `slam:=true`.
+`slam_toolbox` maps automatically from `/agv_1/scan` + odom — no start command.
+Details: [docs/agv-fleet/03-navigation.md](docs/agv-fleet/03-navigation.md).
+
+**1. Drive around** (loop back to your start — that triggers loop closure):
+
+```bash
+ros2 launch agv_navigation teleop.launch.py namespace:=agv_1
+```
+
+Small Tk window: arrows/WASD (hold), `qezc` diagonals, speed sliders, space =
+E-stop. Publishes `TwistStamped` at 20 Hz while a key is held and zeros on
+release. Don't use `teleop_twist_keyboard` — it sends one message per keypress,
+so `cmd_vel_timeout` stops the robot between keys. Scripted alternative:
+
+```bash
+ros2 topic pub -r 20 /agv_1/cmd_vel_nav geometry_msgs/msg/TwistStamped \
+  "{header: {frame_id: base_link}, twist: {linear: {x: 0.2}, angular: {z: 0.0}}}"
+```
+
+**2. Save** — both, into `src/` (symlink-install, stays in git):
+
+```bash
+# .pgm + .yaml — what map_server/AMCL load
+ros2 service call /agv_1/slam_toolbox/save_map slam_toolbox/srv/SaveMap \
+  "{name: {data: 'src/robots/agv/agv_navigation/maps/office_world'}}"
+# .posegraph — the only way to resume mapping later
+ros2 service call /agv_1/slam_toolbox/serialize_map slam_toolbox/srv/SerializeMap \
+  "{filename: 'src/robots/agv/agv_navigation/maps/office_world'}"
+```
+
+**3. Switch over** (also when `agv_2` gets its Nav2 stack):
+
+```bash
+ros2 launch workcell_bringup workcell.launch.py \
+  slam:=false map:=src/robots/agv/agv_navigation/maps/office_world.yaml
+```
+
+Gotchas: check `/agv_1/odom` against the Gazebo GUI first — bad odom fails
+silently and ruins the map. Watch `position`, not `velocity`, in
+`/agv_1/joint_states`.
+
 ## References
 
 - [Isaac ROS dev environment](https://nvidia-isaac-ros.github.io/concepts/dev_env/index.html)

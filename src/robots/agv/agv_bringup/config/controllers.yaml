@@ -84,7 +84,30 @@
       # odom_bootstrap action in bringup.launch.py.
       enable_odom_tf: true
 
-      cmd_vel_timeout: 0.5
+      # Deadman switch, not a latency knob. diff_drive_controller keeps
+      # applying the last command it received until this much time has
+      # passed with no new one, then writes zeros to the wheels. It has to
+      # exist: cmd_vel is a stream of *setpoints* with no "stop" implied by
+      # silence, so without a timeout a commander that crashes, is Ctrl-C'd,
+      # loses its network, or gets starved by the sim leaves the AGV driving
+      # at its last velocity forever, into whatever is in front of it.
+      #
+      # Smaller is therefore SAFER, not faster - it does not reduce the
+      # latency of commands you actually send, it shortens how long a
+      # runaway lasts. The floor is set by the command rate: at teleop_ui's
+      # 20 Hz (50 ms) and Nav2's controller_frequency of 20 Hz, 0.25 s is
+      # five missed messages of slack, which absorbs a scheduling hiccup
+      # under software rendering without cutting motion short. Don't take it
+      # below ~5x the slowest commander's period or the robot will stutter
+      # whenever the sim's RTF dips.
+      #
+      # Lowered from 0.5 s, which was tuned for nothing in particular and
+      # only ever became visible because ros2's teleop_twist_keyboard sends
+      # one message per keypress - making the timeout, rather than the
+      # released key, the thing that stopped the robot. teleop_ui.py
+      # publishes continuously and zeros on release, so that is no longer
+      # what this value is for.
+      cmd_vel_timeout: 0.25
       # NOTE: no `use_stamped_vel` - it was removed from diff_drive_controller
       # (4.x), which accepts geometry_msgs/TwistStamped on ~/cmd_vel and
       # nothing else. Nav2's matching `enable_stamped_cmd_vel: true` is set in

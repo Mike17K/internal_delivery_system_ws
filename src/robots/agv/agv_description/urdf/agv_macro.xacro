@@ -119,11 +119,46 @@
         </link>
 
         <joint name="wheel_right_joint" type="continuous">
-            <limit lower="0.00000" upper="0.00000" effort="0.00000" velocity="0.00000" />
+            <!-- The AGVv3 export wrote this as all-zeros. On a `continuous`
+                 joint URDF needs no <limit> at all, but the zeros were not
+                 inert: gz-sim clamps applied joint torque to `effort` and the
+                 velocity command to `velocity`, so the wheels received exactly
+                 zero of both. diff_drive_controller ran normally and wrote its
+                 commands to the joints - odometry flowed, /cmd_vel had a live
+                 subscriber - while the robot never moved and joint_states
+                 reported wheel velocities of ~1e-17 rad/s. If the robot ever
+                 goes inert again with a healthy-looking control chain, look
+                 here first.
+                 velocity: 30 rad/s ~= 0.6 m/s at r=0.02011, just above the
+                 0.5 m/s ceiling in nav2_params.yaml/controllers.yaml.
+                 effort: 10 N-m per wheel, ~100x the ~0.107 N-m needed to
+                 accelerate this 10.6 kg base at the smoother's 1.0 m/s^2, so
+                 the limit never becomes the binding constraint on ramps or
+                 small obstacles. -->
+            <limit effort="10.0" velocity="30.0" />
             <origin rpy="1.57080 0.00000 0.00000" xyz="0.00000 -0.14000 0.02000" />
             <parent link="base_link" />
             <child link="wheel_right_link" />
-            <axis xyz="0.00000 0.00000 1.00000" />
+            <!-- NOTE the -1 on Z, which is NOT what the AGVv3 export wrote.
+                 The export mirrored the two wheels' origins (+1.5708 rpy here,
+                 -1.5708 on wheel_left_joint), so an identical local "0 0 1"
+                 axis on both pointed along world -Y here and +Y on the left -
+                 the two joint axes were antiparallel.
+                 Rolling forward is positive rotation about +Y (w = v/R), and
+                 diff_drive_controller sends both wheels the SAME positive
+                 command for forward motion, so the left wheel rolled forward
+                 while this one rolled backward: the robot turned clockwise in
+                 place on any linear.x command.
+                 Worse, it did so silently. Both joints reported the same
+                 positive velocity, so the controller integrated a textbook
+                 straight line - odometry read 40 m of travel with y at 1e-10
+                 while the robot had not left its spawn point. Do not trust
+                 /odom to catch a regression here; check that the wheels turn
+                 the same way in the Gazebo GUI.
+                 Flipping the axis rather than the origin rpy leaves the
+                 exported link frames untouched (the wheel is a symmetric
+                 cylinder, so the mirrored origin is otherwise harmless). -->
+            <axis xyz="0.00000 0.00000 -1.00000" />
         </joint>
 
         <link name="wheel_left_link">
@@ -149,7 +184,23 @@
         </link>
 
         <joint name="wheel_left_joint" type="continuous">
-            <limit lower="0.00000" upper="0.00000" effort="0.00000" velocity="0.00000" />
+            <!-- The AGVv3 export wrote this as all-zeros. On a `continuous`
+                 joint URDF needs no <limit> at all, but the zeros were not
+                 inert: gz-sim clamps applied joint torque to `effort` and the
+                 velocity command to `velocity`, so the wheels received exactly
+                 zero of both. diff_drive_controller ran normally and wrote its
+                 commands to the joints - odometry flowed, /cmd_vel had a live
+                 subscriber - while the robot never moved and joint_states
+                 reported wheel velocities of ~1e-17 rad/s. If the robot ever
+                 goes inert again with a healthy-looking control chain, look
+                 here first.
+                 velocity: 30 rad/s ~= 0.6 m/s at r=0.02011, just above the
+                 0.5 m/s ceiling in nav2_params.yaml/controllers.yaml.
+                 effort: 10 N-m per wheel, ~100x the ~0.107 N-m needed to
+                 accelerate this 10.6 kg base at the smoother's 1.0 m/s^2, so
+                 the limit never becomes the binding constraint on ramps or
+                 small obstacles. -->
+            <limit effort="10.0" velocity="30.0" />
             <origin rpy="-1.57080 0.00000 0.00000" xyz="0.00000 0.14000 0.02000" />
             <parent link="base_link" />
             <child link="wheel_left_link" />
