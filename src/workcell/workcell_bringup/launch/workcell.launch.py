@@ -6,7 +6,8 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.conditions import IfCondition, UnlessCondition
 from launch_ros.actions import Node
-
+from ament_index_python.packages import get_package_prefix
+from launch.actions import SetEnvironmentVariable
 
 def generate_launch_description():
     ld = LaunchDescription()
@@ -25,6 +26,35 @@ def generate_launch_description():
         os.path.join(pkg_workcell_description, "models"),
     )
     ld.add_action(set_gz_resource_path)
+
+    # Mesh URIs written as package://<pkg>/... in the URDF do NOT reach gz as
+    # package:// - sdformat's URDF parser rewrites every one of them into
+    # model://<pkg>/..., so agv_macro.xacro's
+    # package://agv_description/meshes/stl/Cube.026.stl arrives here as
+    # model://agv_description/meshes/stl/Cube.026.stl. gz resolves that by
+    # scanning GZ_SIM_RESOURCE_PATH for an entry that CONTAINS a directory
+    # named agv_description - so the entry to add is the parent of the
+    # package's share directory, i.e. install/<pkg>/share, one per package
+    # that owns meshes.
+    #
+    # This used to compute a single "<workspace>/share" by taking dirname
+    # twice off a package prefix. That is colcon's merge-install layout;
+    # this workspace is isolated-install (install/<pkg>/share/<pkg>), so
+    # that path simply does not exist and nothing was ever resolved through
+    # it. RViz was unaffected - it handles package:// itself - which is why
+    # the failure looked like a Gazebo-only mesh problem:
+    #   [Err] [SystemPaths.cc:426] Unable to find file with URI
+    #         [model://agv_description/meshes/stl/Cube.026.stl]
+    #   [Err] [SceneManager.cc:426] Failed to load geometry for visual:
+    #         base_link_fixed_joint_lump__base_visual_visual
+    for mesh_pkg in ("agv_description", "workcell_description"):
+        ld.add_action(
+            AppendEnvironmentVariable(
+                name="GZ_SIM_RESOURCE_PATH",
+                value=os.path.join(get_package_prefix(mesh_pkg), "share"),
+            )
+        )
+
 
     # 3. Global Launch Arguments
     use_fake_hardware_arg = DeclareLaunchArgument(

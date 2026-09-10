@@ -267,7 +267,7 @@ smoother_server:
 behavior_server:
   ros__parameters:
     use_sim_time: True
-    enable_stamped_cmd_vel: true  # see controller_server above
+    enable_stamped_cmd_vel: true # see controller_server above
     local_costmap_topic: local_costmap/costmap_raw
     global_costmap_topic: global_costmap/costmap_raw
     local_footprint_topic: local_costmap/published_footprint
@@ -304,7 +304,7 @@ waypoint_follower:
 velocity_smoother:
   ros__parameters:
     use_sim_time: True
-    enable_stamped_cmd_vel: true  # see controller_server above
+    enable_stamped_cmd_vel: true # see controller_server above
     smoothing_frequency: 20.0
     scale_velocities: False
     feedback: "OPEN_LOOP"

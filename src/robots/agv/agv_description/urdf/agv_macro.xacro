@@ -71,7 +71,8 @@
                      collision box needed for AGV_S (there, the source didn't
                      even get the collision right either; here it did, but
                      inertial still has the stale "0 0 0" from that pattern). -->
-                <inertia ixx="0.06103" ixy="0.00000" ixz="0.00000" iyy="0.11154" iyz="0.00000" izz="0.15573" />
+                <inertia ixx="0.06103" ixy="0.00000" ixz="0.00000" iyy="0.11154" iyz="0.00000"
+                    izz="0.15573" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.06000" />
                 <mass value="10.00000" />
             </inertial>
@@ -84,7 +85,7 @@
                 <material name="Body" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <geometry>
-                    <mesh filename="$(find agv_description)/meshes/stl/Cube.026.stl" scale="1 1 1" />
+                    <mesh filename="package://agv_description/meshes/stl/Cube.026.stl" scale="1 1 1" />
                 </geometry>
             </visual>
         </link>
@@ -105,7 +106,8 @@
                      already aligns that to world Y. The tensor's "along-axis"
                      value belongs on izz, not iyy - recomputed directly from
                      r=0.02011, L=0.014, m=0.5 (Izz=0.5mr^2, Ixx=Iyy=m(3r^2+L^2)/12). -->
-                <inertia ixx="0.00006" ixy="0.00000" ixz="0.00000" iyy="0.00006" iyz="0.00000" izz="0.00010" />
+                <inertia ixx="0.00006" ixy="0.00000" ixz="0.00000" iyy="0.00006" iyz="0.00000"
+                    izz="0.00010" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <mass value="0.50000" />
             </inertial>
@@ -170,7 +172,8 @@
             </collision>
             <inertial>
                 <!-- Same axis correction as wheel_right_link above. -->
-                <inertia ixx="0.00006" ixy="0.00000" ixz="0.00000" iyy="0.00006" iyz="0.00000" izz="0.00010" />
+                <inertia ixx="0.00006" ixy="0.00000" ixz="0.00000" iyy="0.00006" iyz="0.00000"
+                    izz="0.00010" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <mass value="0.50000" />
             </inertial>
@@ -227,7 +230,8 @@
             </collision>
             <inertial>
                 <!-- Solid-sphere inertia for r=0.02011, m=0.05 (I=0.4*m*r^2). -->
-                <inertia ixx="0.00001" ixy="0.00000" ixz="0.00000" iyy="0.00001" iyz="0.00000" izz="0.00001" />
+                <inertia ixx="0.00001" ixy="0.00000" ixz="0.00000" iyy="0.00001" iyz="0.00000"
+                    izz="0.00001" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <mass value="0.05000" />
             </inertial>
@@ -254,7 +258,8 @@
                 </geometry>
             </collision>
             <inertial>
-                <inertia ixx="0.00001" ixy="0.00000" ixz="0.00000" iyy="0.00001" iyz="0.00000" izz="0.00001" />
+                <inertia ixx="0.00001" ixy="0.00000" ixz="0.00000" iyy="0.00001" iyz="0.00000"
+                    izz="0.00001" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <mass value="0.05000" />
             </inertial>
@@ -295,7 +300,8 @@
                      body, but real/non-zero (see docs/agv-fleet/
                      01-robot-description.md's note on the original AGV
                      export's zero-inertia crash - never leave this at 0). -->
-                <inertia ixx="0.00002" ixy="0.00000" ixz="0.00000" iyy="0.00002" iyz="0.00000" izz="0.00002" />
+                <inertia ixx="0.00002" ixy="0.00000" ixz="0.00000" iyy="0.00002" iyz="0.00000"
+                    izz="0.00002" />
                 <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
                 <mass value="0.05000" />
             </inertial>
@@ -356,11 +362,11 @@
              renderer-provided UVs) - unverified from here, falls back to
              <color> if not. -->
         <material name="Weel">
-            <texture filename="$(find agv_description)/meshes/textures/AGVv3Weel.png" />
+            <texture filename="package://agv_description/meshes/textures/AGVv3Weel.png" />
             <color rgba="0.80000 0.80000 0.80000 1.00000" />
         </material>
         <material name="Body">
-            <texture filename="$(find agv_description)/meshes/textures/BodyTexture.png" />
+            <texture filename="package://agv_description/meshes/textures/BodyTexture.png" />
             <color rgba="0.80000 0.80000 0.80000 1.00000" />
         </material>
         <material name="Lidar">
