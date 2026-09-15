@@ -31,17 +31,35 @@ demonstrated.
 
 Each robot's TF lives entirely on its own `/<namespace>/tf` topic (see
 `02-bringup-and-simulation.md`'s "Fleet TF strategy") — nothing merges
-`agv_1`'s and `agv_2`'s trees into one. Practical consequences: a single
-RViz session can't show both robots' full TF trees at once without adding
-both topics manually and accepting they don't share a common displayed
-root beyond the static `world -> map`; and no robot's costmap currently
-sees any *other* robot as an obstacle (the "fleet_obstacle_layer" sketched
-in the Open-RMF integration guide, publishing each robot's footprint to a
-shared topic other robots' costmaps subscribe to, is not implemented).
-Fixing either needs an explicit relay/aggregator node reading each robot's
-`map -> odom -> base_link` off its own namespaced tf and republishing it
-somewhere shared — a real, separate piece of work, not a side effect of
-anything currently in `agv_navigation`.
+`agv_1`'s and `agv_2`'s trees into one. A single RViz session still can't
+show both robots' full TF trees at once without adding both topics
+manually and accepting they don't share a common displayed root beyond
+the static `world -> map`.
+
+**Costmap obstacle avoidance between robots is now implemented**, though,
+without needing a full TF merge: `agv_navigation/scripts/
+fleet_obstacle_broadcaster.py` is the relay/aggregator this section used
+to say was missing. It subscribes to every fleet robot's own
+`/<namespace>/tf` + `tf_static` into a private `tf2_ros.Buffer` per robot
+(manually fed via `set_transform()`/`set_transform_static()` — `tf2_ros`'s
+own `TransformListener` hardcodes absolute `/tf`, so it can't be pointed
+at a namespaced topic), looks up each robot's live `map -> base_link`
+pose, and republishes every *other* robot's position as a filled disk of
+points (its cylindrical footprint) onto `/<namespace>/fleet_obstacles`.
+`nav2_params.yaml`'s `fleet_obstacle_layer` — an `ObstacleLayer` instance
+added to both `local_costmap` and `global_costmap`, the actual
+implementation of the "fleet_obstacle_layer" this section used to say was
+only sketched in the Open-RMF integration guide — subscribes to that as a
+`PointCloud2` observation source and marks/clears it exactly like a real
+sensor. No cross-robot TF lookup was needed to make this work: the
+published frame is `map`, the one frame every robot's own AMCL already
+agrees on numerically (one shared `map_server`), so only tf *within* each
+robot's own tree is ever used. Launched automatically as part of
+`workcell_bringup/launch/workcell.launch.py`; standalone via
+`agv_navigation/launch/fleet_obstacles.launch.py`. Not yet verified
+against a live two-robot run — written and unit-checked (disk generation,
+node startup, graceful behavior with no TF yet) but not watched in RViz
+while both robots actually drive past each other.
 
 ## `odom` frame didn't exist at all — seven runs, three stacked causes
 

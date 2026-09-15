@@ -187,7 +187,7 @@ local_costmap:
       # AGVv3's actual footprint (agv_description/urdf/agv_macro.xacro
       # base_link box: 0.35177 x 0.25126, halved and rounded).
       footprint: "[[0.176, 0.126], [0.176, -0.126], [-0.176, -0.126], [-0.176, 0.126]]"
-      plugins: ["obstacle_layer", "inflation_layer"]
+      plugins: ["obstacle_layer", "fleet_obstacle_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
@@ -206,6 +206,29 @@ local_costmap:
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
           obstacle_min_range: 0.0
+      # Other fleet members as cylindrical obstacles - see
+      # agv_navigation/scripts/fleet_obstacle_broadcaster.py and
+      # docs/agv-fleet/04-known-issues-and-next-steps.md's "No fleet-wide
+      # TF view". Its cloud is stamped "map", the one frame this robot's
+      # own AMCL agrees with the rest of the fleet on numerically; that's
+      # also why obstacle_max_range/raytrace_max_range are building-scale
+      # (100m) here, not sensor-scale like "scan" above - both are
+      # measured from that frame's origin (0, 0), not from this robot,
+      # since a synthetic cloud has no physical sensor location of its own.
+      fleet_obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: other_robots
+        other_robots:
+          topic: "/$(var namespace)/fleet_obstacles"
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "PointCloud2"
+          raytrace_max_range: 100.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 100.0
+          obstacle_min_range: 0.0
       always_send_full_costmap: True
 
 global_costmap:
@@ -219,7 +242,7 @@ global_costmap:
       footprint: "[[0.176, 0.126], [0.176, -0.126], [-0.176, -0.126], [-0.176, 0.126]]"
       resolution: 0.05
       track_unknown_space: true
-      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      plugins: ["static_layer", "obstacle_layer", "fleet_obstacle_layer", "inflation_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
@@ -233,6 +256,24 @@ global_costmap:
           raytrace_max_range: 3.0
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
+          obstacle_min_range: 0.0
+      # See local_costmap's fleet_obstacle_layer above - same source,
+      # global_frame is already "map" here so it applies with no transform
+      # at all, letting the global planner route around the rest of the
+      # fleet instead of just the local controller dodging it late.
+      fleet_obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: other_robots
+        other_robots:
+          topic: "/$(var namespace)/fleet_obstacles"
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "PointCloud2"
+          raytrace_max_range: 100.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 100.0
           obstacle_min_range: 0.0
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"

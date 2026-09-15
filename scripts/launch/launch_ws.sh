@@ -28,22 +28,22 @@ broadcast_off
 
 # --- PANEL 1 (Πάνω): Camera Input Node ---
 echo "Configuring Panel 1..."
-paste_cmd "bash scripts/shell.sh" && enter
-sleep 5
+# paste_cmd "bash scripts/shell.sh" && enter
+# sleep 5
 # paste_cmd 'ros2 launch workcell_bringup workcell.launch.py sim_gazebo:=true use_fake_hardware:=false'
 # enter
 
 
 move_right
-paste_cmd "bash scripts/shell.sh" && enter
+# paste_cmd "bash scripts/shell.sh" && enter
 # enter
 
 move_down
-paste_cmd "bash scripts/shell.sh" && enter
+# paste_cmd "bash scripts/shell.sh" && enter
 # paste_cmd "ros2 launch workcell_bringup rviz.launch.py rviz_namespace:=robot_1"
 
 move_left
-paste_cmd "bash scripts/shell.sh" && enter
+# paste_cmd "bash scripts/shell.sh" && enter
 # paste_cmd "ros2 run tf2_ros static_transform_publisher 0.0 0.0 0.0 0.0 0.0 0.0 1.0 map group_a/odom"
 
 
@@ -55,7 +55,7 @@ enter
 broadcast_off
 
 move_up
-paste_cmd 'source install/setup.bash && ros2 launch workcell_bringup workcell.launch.py sim_gazebo:=true use_fake_hardware:=false slam:=false map:=/workspaces/isaac_ros-dev/src/robots/agv/agv_navigation/maps/office_world.yaml'
+paste_cmd "source install/setup.bash && ros2 launch workcell_bringup workcell.launch.py sim_gazebo:=true use_fake_hardware:=false slam:=false map:=$WS/src/robots/agv/agv_navigation/maps/office_world.yaml"
 
 move_right
 # planning_bringup (cuMotion, group_a arm planning) was legacy and has been removed
@@ -64,6 +64,7 @@ paste_cmd 'source install/setup.bash && ros2 launch agv_navigation teleop.launch
 move_down
 # workcell_bringup rviz.launch.py (group_a MoveIt RViz view) was legacy and has been removed
 # paste_cmd 'source install/setup.bash && ros2 launch workcell_bringup rviz.launch.py rviz_namespace:=robot_1'
+paste_cmd 'source install/setup.bash && ros2 launch office_distributor office_distributor.launch.py robots:=agv_1,agv_2'
 
 move_left
-paste_cmd 'source install/setup.bash && ros2 run rviz2 rviz2 -d scripts/config/rviz_slam.rviz --ros-args -r /tf:=/agv_1/tf -r /tf_static:=/agv_1/tf_static'
+paste_cmd 'source install/setup.bash && ros2 run rviz2 rviz2 -d scripts/config/rviz_slam.rviz --ros-args -r /tf:=/agv_1/tf -r /tf_static:=/agv_1/tf_static -r /goal_pose:=/agv_1/goal_pose -r /initialpose:=/agv_1/initialpose -p use_sim_time:=True'

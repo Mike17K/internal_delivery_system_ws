@@ -36,6 +36,13 @@
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>python3-tk</exec_depend>
 
+  <!-- fleet_obstacle_broadcaster.py (launch/fleet_obstacles.launch.py) -->
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>tf2_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>sensor_msgs_py</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+
   <export>
     <build_type>ament_cmake</build_type>
   </export>
