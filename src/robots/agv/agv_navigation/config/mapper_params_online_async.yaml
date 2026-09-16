@@ -39,7 +39,11 @@ slam_toolbox:
     transform_publish_period: 0.02
     map_update_interval: 5.0
     resolution: 0.05
-    min_laser_range: 0.0
+    # 0.0 let the chassis' own body (nothing physically stops a lidar
+    # return closer than the robot's own radius) count as a scan point.
+    # AGVv3's footprint half-diagonal is ~0.22m; 0.15 clears any self-hit
+    # with margin without cutting into real near-wall returns.
+    min_laser_range: 0.15
     max_laser_range: 20.0
     minimum_time_interval: 0.5
     transform_timeout: 0.2
@@ -50,8 +54,14 @@ slam_toolbox:
     # General Parameters
     use_scan_matching: true
     use_scan_barycenter: true
-    minimum_travel_distance: 0.5
-    minimum_travel_heading: 0.5
+    # Were 0.5/0.5 (rad/m) - a threshold tuned for a much bigger space than
+    # office_world's ~4m rooms and 2.4m corridor. At that spacing, a whole
+    # small room could be crossed between pose-graph nodes; halving it
+    # gives scan-matching more correction points and tighter loop closures
+    # at this building's actual scale. Tradeoff: a denser graph costs more
+    # CPU/memory per map_update_interval.
+    minimum_travel_distance: 0.2
+    minimum_travel_heading: 0.2
     scan_buffer_size: 10
     scan_buffer_maximum_scan_distance: 10.0
     link_match_minimum_response_fine: 0.1
@@ -59,9 +69,16 @@ slam_toolbox:
     loop_search_maximum_distance: 3.0
     do_loop_closing: true
     loop_match_minimum_chain_size: 10
-    loop_match_maximum_variance_coarse: 3.0
-    loop_match_minimum_response_coarse: 0.35
-    loop_match_minimum_response_fine: 0.45
+    # office_world has several near-identical rooms/corridor bays in a
+    # row - classic perceptual-aliasing territory, where slam_toolbox can
+    # loop-close two *different* rooms it mistakes for the same one.
+    # Raised (tighter, i.e. requires a more confident match) rather than
+    # loosened, opposite direction from the travel-distance change above:
+    # tradeoff is a genuine loop closure occasionally needs a bit more
+    # corroborating overlap before it's accepted.
+    loop_match_maximum_variance_coarse: 2.0
+    loop_match_minimum_response_coarse: 0.45
+    loop_match_minimum_response_fine: 0.55
 
     # Correlation Parameters - Correlation Parameters
     correlation_search_space_dimension: 0.5

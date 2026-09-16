@@ -39,10 +39,19 @@
 amcl:
   ros__parameters:
     use_sim_time: True
-    alpha1: 0.2
-    alpha2: 0.2
-    alpha3: 0.2
-    alpha4: 0.2
+    # alpha1-4 (odom_model_type: "diff", so alpha5 - the omni strafe term -
+    # is unused) were all 0.2: how much the motion model spreads particles
+    # per update, proportional to the commanded motion. A physical bump
+    # (hitting a wall/another robot) moves the base in a way the motion
+    # model never predicted from odometry alone, so a small alpha keeps the
+    # particle cloud too tight to recover - the filter stays confident in
+    # the wrong pose instead of admitting uncertainty and re-spreading.
+    # Slightly wider tolerates that without materially hurting normal-drive
+    # precision.
+    alpha1: 0.3
+    alpha2: 0.3
+    alpha3: 0.3
+    alpha4: 0.3
     alpha5: 0.2
     base_frame_id: "base_link"
     odom_frame_id: "odom"
@@ -62,15 +71,27 @@ amcl:
     odom_model_type: "diff"
     pf_err: 0.05
     pf_z: 0.99
-    recovery_alpha_fast: 0.0
-    recovery_alpha_slow: 0.0
+    # Augmented MCL recovery - both were 0.0, which fully disables it. This
+    # is the actual mechanism AMCL has for "the particle filter's average
+    # likelihood just dropped, inject random particles to re-find the
+    # robot" - exactly the collide-then-lose-track case. 0.0 means a
+    # collision that knocks the estimate off has no way back short of a
+    # manual re-localization; these are nav2's own commonly-used non-zero
+    # defaults, not aggressive tuning.
+    recovery_alpha_fast: 0.1
+    recovery_alpha_slow: 0.001
     resample_interval: 1
     save_pose_rate: 0.5
     sigma_hit: 0.2
     tf_broadcast: true
     transform_tolerance: 1.0
-    update_min_a: 0.2
-    update_min_d: 0.25
+    # Were 0.2/0.25 - the minimum rotation/distance since the last update
+    # before AMCL will re-weight/resample at all. Lower means it corrects
+    # against the laser sooner after a bump instead of coasting on the
+    # (now wrong) motion-model prediction for up to a quarter meter/~11
+    # degrees of further drift first.
+    update_min_a: 0.1
+    update_min_d: 0.15
     z_hit: 0.5
     z_max: 0.05
     z_rand: 0.5
@@ -188,10 +209,20 @@ local_costmap:
       # base_link box: 0.35177 x 0.25126, halved and rounded).
       footprint: "[[0.176, 0.126], [0.176, -0.126], [-0.176, -0.126], [-0.176, 0.126]]"
       plugins: ["obstacle_layer", "fleet_obstacle_layer", "inflation_layer"]
+      # inflation_radius/cost_scaling_factor were 0.3/3.0: in the 2.4m
+      # corridor (office_world's `corridor_width`), that soft-cost gradient
+      # reaches 0.3m off BOTH walls, so the planner (which threads through
+      # the lowest-cost cells) ran straight down the centerline with ~0.9m
+      # clear on either side of the 0.35x0.25m footprint - too much of the
+      # corridor for a robot that's meant to leave room for people to cross,
+      # not hug a wall. Narrower radius + steeper falloff pulls the
+      # preferred path back toward the wall while the footprint collision
+      # check (a hard constraint, independent of inflation) still refuses
+      # any pose that would actually clip the wall.
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.3
+        cost_scaling_factor: 8.0
+        inflation_radius: 0.15
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
@@ -279,10 +310,16 @@ global_costmap:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
         map_topic: /map # rewritten per mode at launch time - see navigation.launch.py
+      # See local_costmap's inflation_layer above for why this is tighter
+      # than the 0.3/3.0 it used to be - same corridor-hugging goal, and it
+      # matters here too since NavfnPlanner (global_costmap) is what
+      # actually threads the path off-center in the first place; the local
+      # costmap's own inflation only shapes the controller's fine-tracking
+      # of whatever path the planner already committed to.
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.3
+        cost_scaling_factor: 8.0
+        inflation_radius: 0.15
       always_send_full_costmap: True
 
 planner_server:
