@@ -39,10 +39,19 @@
 amcl:
   ros__parameters:
     use_sim_time: True
-    alpha1: 0.2
-    alpha2: 0.2
-    alpha3: 0.2
-    alpha4: 0.2
+    # alpha1-4 (odom_model_type: "diff", so alpha5 - the omni strafe term -
+    # is unused) were all 0.2: how much the motion model spreads particles
+    # per update, proportional to the commanded motion. A physical bump
+    # (hitting a wall/another robot) moves the base in a way the motion
+    # model never predicted from odometry alone, so a small alpha keeps the
+    # particle cloud too tight to recover - the filter stays confident in
+    # the wrong pose instead of admitting uncertainty and re-spreading.
+    # Slightly wider tolerates that without materially hurting normal-drive
+    # precision.
+    alpha1: 0.3
+    alpha2: 0.3
+    alpha3: 0.3
+    alpha4: 0.3
     alpha5: 0.2
     base_frame_id: "base_link"
     odom_frame_id: "odom"
@@ -62,15 +71,27 @@ amcl:
     odom_model_type: "diff"
     pf_err: 0.05
     pf_z: 0.99
-    recovery_alpha_fast: 0.0
-    recovery_alpha_slow: 0.0
+    # Augmented MCL recovery - both were 0.0, which fully disables it. This
+    # is the actual mechanism AMCL has for "the particle filter's average
+    # likelihood just dropped, inject random particles to re-find the
+    # robot" - exactly the collide-then-lose-track case. 0.0 means a
+    # collision that knocks the estimate off has no way back short of a
+    # manual re-localization; these are nav2's own commonly-used non-zero
+    # defaults, not aggressive tuning.
+    recovery_alpha_fast: 0.1
+    recovery_alpha_slow: 0.001
     resample_interval: 1
     save_pose_rate: 0.5
     sigma_hit: 0.2
     tf_broadcast: true
     transform_tolerance: 1.0
-    update_min_a: 0.2
-    update_min_d: 0.25
+    # Were 0.2/0.25 - the minimum rotation/distance since the last update
+    # before AMCL will re-weight/resample at all. Lower means it corrects
+    # against the laser sooner after a bump instead of coasting on the
+    # (now wrong) motion-model prediction for up to a quarter meter/~11
+    # degrees of further drift first.
+    update_min_a: 0.1
+    update_min_d: 0.15
     z_hit: 0.5
     z_max: 0.05
     z_rand: 0.5
@@ -160,9 +181,31 @@ controller_server:
       min_approach_linear_velocity: 0.05
       approach_velocity_scaling_dist: 0.4
       use_collision_detection: true
-      max_allowed_time_to_collision_up_to_carrot: 1.0
+      # Was 1.0s: at desired_linear_vel 0.3 m/s that's a 0.3m lookahead -
+      # shorter than fleet_obstacle_broadcaster's robot_radius (0.45m,
+      # agv_navigation/scripts/), so a robot would already be INSIDE the
+      # other robot's marked safety margin before use_collision_detection
+      # even predicted a collision. 2.0s (~0.6m) gives it a real chance to
+      # slow down before entering that margin instead of at its edge.
+      max_allowed_time_to_collision_up_to_carrot: 2.0
       use_regulated_linear_velocity_scaling: true
-      use_cost_regulated_linear_velocity_scaling: false
+      # Was false. use_collision_detection above only refuses a trajectory
+      # that's ALREADY heading for a collision - a hard, late, all-or-
+      # nothing check that reads as "steers a little, then hits anyway"
+      # against another robot that's still moving (unlike a wall, it keeps
+      # closing the gap between one costmap update and the next). Cost-
+      # regulated scaling instead ramps speed down continuously as costmap
+      # cost rises near ANY obstacle - walls and the fleet_obstacle_layer's
+      # robot cylinders alike - so it's already slow well before getting
+      # close enough for that hard check to matter. inflation_cost_scaling_
+      # factor must match local_costmap/global_costmap's inflation_layer
+      # (nav2_params.yaml, both) - it's how this converts a raw cost back
+      # into a distance estimate; a mismatch here reads the wrong distance
+      # off the same costmap.
+      use_cost_regulated_linear_velocity_scaling: true
+      cost_scaling_dist: 0.6
+      cost_scaling_gain: 1.0
+      inflation_cost_scaling_factor: 5.0
       regulated_linear_scaling_min_radius: 0.6
       regulated_linear_scaling_min_speed: 0.08
       use_fixed_curvature_lookahead: false
@@ -187,11 +230,21 @@ local_costmap:
       # AGVv3's actual footprint (agv_description/urdf/agv_macro.xacro
       # base_link box: 0.35177 x 0.25126, halved and rounded).
       footprint: "[[0.176, 0.126], [0.176, -0.126], [-0.176, -0.126], [-0.176, 0.126]]"
-      plugins: ["obstacle_layer", "inflation_layer"]
+      plugins: ["obstacle_layer", "fleet_obstacle_layer", "inflation_layer"]
+      # inflation_radius/cost_scaling_factor were 0.3/3.0 originally (path
+      # ran the corridor centerline - too much clearance for a robot meant
+      # to leave room for people to cross), then tightened to 0.15/8.0,
+      # which went too far the other way: robots were skimming close enough
+      # to actually catch/stick on walls. 0.22/5.0 backs off partway - still
+      # noticeably closer to the wall than the original, but with enough
+      # margin that a small tracking wobble doesn't turn into a scrape. The
+      # footprint collision check (a hard constraint, independent of
+      # inflation) refuses any pose that would actually clip the wall
+      # regardless of this value either way.
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.3
+        cost_scaling_factor: 5.0
+        inflation_radius: 0.22
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
@@ -205,6 +258,29 @@ local_costmap:
           raytrace_max_range: 3.0
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
+          obstacle_min_range: 0.0
+      # Other fleet members as cylindrical obstacles - see
+      # agv_navigation/scripts/fleet_obstacle_broadcaster.py and
+      # docs/agv-fleet/04-known-issues-and-next-steps.md's "No fleet-wide
+      # TF view". Its cloud is stamped "map", the one frame this robot's
+      # own AMCL agrees with the rest of the fleet on numerically; that's
+      # also why obstacle_max_range/raytrace_max_range are building-scale
+      # (100m) here, not sensor-scale like "scan" above - both are
+      # measured from that frame's origin (0, 0), not from this robot,
+      # since a synthetic cloud has no physical sensor location of its own.
+      fleet_obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: other_robots
+        other_robots:
+          topic: "/$(var namespace)/fleet_obstacles"
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "PointCloud2"
+          raytrace_max_range: 100.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 100.0
           obstacle_min_range: 0.0
       always_send_full_costmap: True
 
@@ -214,12 +290,17 @@ global_costmap:
       use_sim_time: True
       global_frame: map
       robot_base_frame: "base_link"
-      update_frequency: 1.0
-      publish_frequency: 1.0
+      # Were 1.0/1.0 - fine for static walls, slow for another robot that
+      # actually moves between updates. Doesn't replan the path by itself
+      # (bt_navigator's BT controls that cadence), but a stale costmap
+      # means even a fresh replan is routing around where the other robot
+      # WAS, not where it is now.
+      update_frequency: 3.0
+      publish_frequency: 3.0
       footprint: "[[0.176, 0.126], [0.176, -0.126], [-0.176, -0.126], [-0.176, 0.126]]"
       resolution: 0.05
       track_unknown_space: true
-      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      plugins: ["static_layer", "obstacle_layer", "fleet_obstacle_layer", "inflation_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
@@ -234,14 +315,37 @@ global_costmap:
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
           obstacle_min_range: 0.0
+      # See local_costmap's fleet_obstacle_layer above - same source,
+      # global_frame is already "map" here so it applies with no transform
+      # at all, letting the global planner route around the rest of the
+      # fleet instead of just the local controller dodging it late.
+      fleet_obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: other_robots
+        other_robots:
+          topic: "/$(var namespace)/fleet_obstacles"
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "PointCloud2"
+          raytrace_max_range: 100.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 100.0
+          obstacle_min_range: 0.0
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
         map_topic: /map # rewritten per mode at launch time - see navigation.launch.py
+      # See local_costmap's inflation_layer above for the same 0.22/5.0 -
+      # matters here too since NavfnPlanner (global_costmap) is what
+      # actually threads the path off-center in the first place; the local
+      # costmap's own inflation only shapes the controller's fine-tracking
+      # of whatever path the planner already committed to.
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.3
+        cost_scaling_factor: 5.0
+        inflation_radius: 0.22
       always_send_full_costmap: True
 
 planner_server:

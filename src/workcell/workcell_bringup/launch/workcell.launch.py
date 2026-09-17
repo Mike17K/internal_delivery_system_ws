@@ -130,9 +130,17 @@ def generate_launch_description():
     ld.add_action(localization)
 
     # 7. Ορισμός των Ρομπότ στην Κυψέλη Εργασίας
+    # Spaced 1.5m apart along the corridor centerline (y=0, within its
+    # 2.4m width and clear of any furniture - only the rooms off to
+    # either side have that) - comfortably past fleet_obstacle_broadcaster's
+    # 0.45m robot_radius safety cylinder plus each AGV's own ~0.22m
+    # footprint half-diagonal, so they don't spawn already overlapping.
     robots_config = [
         {"name": "agv_1", "xyz": "0.0 0.0 0.0", "rpy": "0.0 0.0 0.0"},
-        # {"name": "agv_2", "xyz": "1.0 0.0 0.0", "rpy": "0.0 0.0 0.0"},
+        {"name": "agv_2", "xyz": "1.5 0.0 0.0", "rpy": "0.0 0.0 0.0"},
+        {"name": "agv_3", "xyz": "3.0 0.0 0.0", "rpy": "0.0 0.0 0.0"},
+        {"name": "agv_4", "xyz": "4.5 0.0 0.0", "rpy": "0.0 0.0 0.0"},
+        {"name": "agv_5", "xyz": "6.0 0.0 0.0", "rpy": "0.0 0.0 0.0"},
     ]
 
     pkg_agv_bringup_share = get_package_share_directory("agv_bringup")
@@ -196,5 +204,22 @@ def generate_launch_description():
         # Give each robot's own bringup (spawn + controllers) a head start
         # before its Nav2 stack comes up and starts looking for it.
         ld.add_action(TimerAction(period=float(i) * 0.5 + 3.0, actions=[navigation_stack]))
+
+    # 9. Fleet-wide obstacle avoidance - each robot's costmap sees every
+    # other robot as a cylinder (see agv_navigation/scripts/
+    # fleet_obstacle_broadcaster.py). Harmless with one robot (nothing to
+    # avoid, publishes empty clouds) and needs each robot's AMCL tf up, so
+    # it starts after the last navigation stack's own head start above.
+    fleet_obstacles = Node(
+        package="agv_navigation",
+        executable="fleet_obstacle_broadcaster.py",
+        name="fleet_obstacle_broadcaster",
+        output="screen",
+        parameters=[{
+            "robots": [robot["name"] for robot in robots_config],
+            "use_sim_time": LaunchConfiguration("sim_gazebo"),
+        }],
+    )
+    ld.add_action(TimerAction(period=(len(robots_config) - 1) * 0.5 + 6.0, actions=[fleet_obstacles]))
 
     return LaunchDescription([use_fake_hardware_arg, sim_gazebo_arg, world_arg, slam_arg, map_arg, ld])
