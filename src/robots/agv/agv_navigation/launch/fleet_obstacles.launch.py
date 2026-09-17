@@ -18,7 +18,7 @@ def get_launch_arguments() -> list[DeclareLaunchArgument]:
     args = []
     args.append(DeclareLaunchArgument("robots", default_value="agv_1,agv_2", description="Comma-separated fleet robot namespaces"))
     args.append(DeclareLaunchArgument("use_sim_time", default_value="true", description="Use simulation (Gazebo) clock"))
-    args.append(DeclareLaunchArgument("robot_radius", default_value="0.22", description="Cylinder radius (m) each robot is represented as in another robot's costmap - covers the AGV's 0.176x0.126 footprint half-diagonal plus margin"))
+    args.append(DeclareLaunchArgument("robot_radius", default_value="0.45", description="Cylinder radius (m) each robot is represented as in another robot's costmap - padded well past the AGV's own ~0.22m footprint half-diagonal so a moving robot is avoided with real margin instead of right up to contact"))
     args.append(DeclareLaunchArgument("publish_rate_hz", default_value="5.0", description="Obstacle cloud publish rate - matches local_costmap's update_frequency"))
     return args
 

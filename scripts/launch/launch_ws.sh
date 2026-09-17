@@ -64,7 +64,7 @@ paste_cmd 'source install/setup.bash && ros2 launch agv_navigation teleop.launch
 move_down
 # workcell_bringup rviz.launch.py (group_a MoveIt RViz view) was legacy and has been removed
 # paste_cmd 'source install/setup.bash && ros2 launch workcell_bringup rviz.launch.py rviz_namespace:=robot_1'
-paste_cmd 'source install/setup.bash && ros2 launch office_distributor office_distributor.launch.py robots:=agv_1,agv_2'
+paste_cmd 'source install/setup.bash && ros2 launch office_distributor office_distributor.launch.py robots:=agv_1,agv_2,agv_3,agv_4,agv_5'
 
 move_left
 paste_cmd 'source install/setup.bash && ros2 run rviz2 rviz2 -d scripts/config/rviz_slam.rviz --ros-args -r /tf:=/agv_1/tf -r /tf_static:=/agv_1/tf_static -r /goal_pose:=/agv_1/goal_pose -r /initialpose:=/agv_1/initialpose -p use_sim_time:=True'

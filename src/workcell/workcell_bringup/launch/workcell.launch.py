@@ -130,9 +130,17 @@ def generate_launch_description():
     ld.add_action(localization)
 
     # 7. Ορισμός των Ρομπότ στην Κυψέλη Εργασίας
+    # Spaced 1.5m apart along the corridor centerline (y=0, within its
+    # 2.4m width and clear of any furniture - only the rooms off to
+    # either side have that) - comfortably past fleet_obstacle_broadcaster's
+    # 0.45m robot_radius safety cylinder plus each AGV's own ~0.22m
+    # footprint half-diagonal, so they don't spawn already overlapping.
     robots_config = [
         {"name": "agv_1", "xyz": "0.0 0.0 0.0", "rpy": "0.0 0.0 0.0"},
-        {"name": "agv_2", "xyz": "1.0 0.0 0.0", "rpy": "0.0 0.0 0.0"},
+        {"name": "agv_2", "xyz": "1.5 0.0 0.0", "rpy": "0.0 0.0 0.0"},
+        {"name": "agv_3", "xyz": "3.0 0.0 0.0", "rpy": "0.0 0.0 0.0"},
+        {"name": "agv_4", "xyz": "4.5 0.0 0.0", "rpy": "0.0 0.0 0.0"},
+        {"name": "agv_5", "xyz": "6.0 0.0 0.0", "rpy": "0.0 0.0 0.0"},
     ]
 
     pkg_agv_bringup_share = get_package_share_directory("agv_bringup")

@@ -81,7 +81,17 @@ class FleetObstacleBroadcaster(Node):
         self.declare_parameter("robots", ["agv_1", "agv_2"])
         self.declare_parameter("map_frame", "map")
         self.declare_parameter("base_frame", "base_link")
-        self.declare_parameter("robot_radius", 0.22)
+        # Was 0.22 - the AGV's own footprint half-diagonal, i.e. zero
+        # safety margin: the marked disk only just covered the other
+        # robot's true body, so by the time this robot's controller saw
+        # it as an obstacle they were already close enough that a moving
+        # obstacle (not a wall - it keeps closing) turned "steer around
+        # it" into "collide anyway." Padded well past the physical
+        # footprint so both robots start avoiding each other with real
+        # room to spare - see controller_server.FollowPath's
+        # max_allowed_time_to_collision_up_to_carrot in nav2_params.yaml,
+        # sized to notice a robot at roughly this range before entering it.
+        self.declare_parameter("robot_radius", 0.45)
         self.declare_parameter("point_spacing", 0.04)
         self.declare_parameter("cloud_height", 0.3)
         self.declare_parameter("publish_rate_hz", 5.0)

@@ -66,7 +66,14 @@ slam_toolbox:
     scan_buffer_maximum_scan_distance: 10.0
     link_match_minimum_response_fine: 0.1
     link_scan_maximum_distance: 1.5
-    loop_search_maximum_distance: 3.0
+    # How far away (meters, pose-graph distance) a loop closure candidate
+    # is even considered from - was 3.0. Shrunk together with
+    # loop_search_space_dimension below so a loop closure can only ever
+    # propose a correction within a small neighborhood of the current
+    # belief, not a jump sourced from matching against the whole map (see
+    # that param's comment for why office_world specifically makes a wide
+    # search dangerous here).
+    loop_search_maximum_distance: 1.0
     do_loop_closing: true
     loop_match_minimum_chain_size: 10
     # office_world has several near-identical rooms/corridor bays in a
@@ -81,17 +88,43 @@ slam_toolbox:
     loop_match_minimum_response_fine: 0.55
 
     # Correlation Parameters - Correlation Parameters
-    correlation_search_space_dimension: 0.5
+    # correlation_search_space_dimension is how far (meters) around
+    # odometry's own current estimate the scan matcher is even allowed to
+    # look for a correction each update - the actual bound on "how big can
+    # one correction be." 0.5 -> 0.3 keeps it tighter: enough to correct
+    # ordinary wheel-slip-scale drift, not enough to snap somewhere else
+    # the map happens to look similar. If a wheel drifts further than this
+    # in one update, scan matching just fails to find a match that update
+    # and falls back to odometry rather than forcing a bad correction - a
+    # missed correction, not a wrong one.
+    correlation_search_space_dimension: 0.3
     correlation_search_space_resolution: 0.01
     correlation_search_space_smear_deviation: 0.1
 
     # Correlation Parameters - Loop Closure Parameters
-    loop_search_space_dimension: 8.0
+    # loop_search_maximum_distance (nearer the top of this file, General
+    # Parameters) and loop_search_space_dimension are loop closure's own,
+    # much larger-radius version of the same "how far can one correction
+    # reach" question - a loop closure explicitly searches the pose graph
+    # for anywhere that looks like a match, not just nearby, which is
+    # exactly the "correction from all the map instead of a local range"
+    # failure mode: in office_world's repeated near-identical rooms, it can
+    # find and confidently snap to the WRONG room. Both shrunk from
+    # 3.0/8.0 so loop closure only ever proposes a jump within a small
+    # neighborhood of where dead-reckoning already thinks the robot is.
+    loop_search_space_dimension: 3.0
     loop_search_space_resolution: 0.05
     loop_search_space_smear_deviation: 0.03
 
     # Scan Matcher Parameters
-    distance_variance_penalty: 0.5
+    # distance_variance_penalty raised 0.5 -> 1.0: this penalizes a
+    # candidate correction by how far it sits from odometry's own
+    # prediction, so raising it makes the matcher trust odometry's
+    # short-term estimate more and a big proposed jump score worse
+    # relative to a small one - reinforcing correlation_search_space_
+    # dimension's hard radius cap with a softer preference for whichever
+    # in-range correction is smallest.
+    distance_variance_penalty: 1.0
     angle_variance_penalty: 1.0
     fine_search_angle_offset: 0.00349
     coarse_search_angle_offset: 0.349
