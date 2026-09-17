@@ -1,0 +1,60 @@
+# Open-RMF fleet config for the AGV fleet - agv_1/2/3 (the fleet's
+# currently-active robots in workcell_bringup/launch/workcell.launch.py's
+# robots_config; agv_4/5 stay commented out there for now). Schema matches
+# open-rmf/rmf_demos' rmf_demos/config/office/tinyRobot_config.yaml; no
+# `fleet_manager:` block here since Nav2RobotAPI talks to Nav2 directly,
+# not over REST.
+
+rmf_fleet:
+  name: "agv_fleet"
+  # [nominal, max] - nominal matches controller_server.FollowPath's own
+  # desired_linear_vel/rotate_to_heading_angular_vel in nav2_params.yaml;
+  # max matches velocity_smoother's max_velocity[0]/[2] there. Not
+  # invented values - reusing what's already tuned for this AGV.
+  limits:
+    linear: [0.3, 0.5]
+    angular: [1.0, 1.5]
+  profile:
+    # footprint: AGV's own footprint half-diagonal (nav2_params.yaml's own
+    # comment on local_costmap/global_costmap's footprint).
+    # vicinity: fleet_obstacle_broadcaster's robot_radius
+    # (agv_navigation/scripts/) - the same already-tuned personal-space
+    # cylinder, not a new number.
+    footprint: 0.22
+    vicinity: 0.45
+  reversible: true
+  # No real battery model this slice (account_for_battery_drain: false
+  # below) - these are unused placeholders, not measured values.
+  battery_system:
+    voltage: 12.0
+    capacity: 24.0
+    charging_current: 5.0
+  mechanical_system:
+    mass: 15.0
+    moment_of_inertia: 5.0
+    friction_coefficient: 0.22
+  ambient_system:
+    power: 20.0
+  tool_system:
+    power: 0.0
+  recharge_threshold: 0.10
+  recharge_soc: 1.0
+  publish_fleet_state: 2.0
+  account_for_battery_drain: false
+  task_capabilities:
+    loop: true
+    delivery: false
+  actions: []
+  finishing_request: "nothing"
+  reassign_task_interval: 120
+  robots:
+    agv_1:
+      charger: "agv_1_charger"
+    agv_2:
+      charger: "agv_2_charger"
+    agv_3:
+      charger: "agv_3_charger"
+    # agv_4/5: add here once they're uncommented in workcell.launch.py's
+    # robots_config, plus their own charger vertex in rmf_building_map.py's
+    # ROBOT_SPAWNS (matching workcell.launch.py's spawn positions) and a
+    # rebuild of workcell_description's nav graph.

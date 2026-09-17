@@ -8,6 +8,11 @@
   <license>TODO: License declaration</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <!-- CMakeLists.txt's nav-graph custom command (maps/office_world.building.yaml
+       -> nav_graphs/0.yaml) shells out to this via `ros2 run`, same as
+       rmf_demos_maps' own CMakeLists.txt does. -->
+  <buildtool_depend>rmf_building_map_tools</buildtool_depend>
+  <buildtool_depend>ros2run</buildtool_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
