@@ -139,8 +139,8 @@ def generate_launch_description():
         {"name": "agv_1", "xyz": "0.0 0.0 0.0", "rpy": "0.0 0.0 0.0"},
         {"name": "agv_2", "xyz": "1.5 0.0 0.0", "rpy": "0.0 0.0 0.0"},
         {"name": "agv_3", "xyz": "3.0 0.0 0.0", "rpy": "0.0 0.0 0.0"},
-        {"name": "agv_4", "xyz": "4.5 0.0 0.0", "rpy": "0.0 0.0 0.0"},
-        {"name": "agv_5", "xyz": "6.0 0.0 0.0", "rpy": "0.0 0.0 0.0"},
+        # {"name": "agv_4", "xyz": "4.5 0.0 0.0", "rpy": "0.0 0.0 0.0"},
+        # {"name": "agv_5", "xyz": "6.0 0.0 0.0", "rpy": "0.0 0.0 0.0"},
     ]
 
     pkg_agv_bringup_share = get_package_share_directory("agv_bringup")

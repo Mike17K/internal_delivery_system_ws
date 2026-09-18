@@ -1,30 +1,28 @@
-"""Randomly sends each robot in `robots` to a room from the generated
-office scene, one goal at a time per robot.
+"""Periodically submits a "go deliver to a random office" task to
+Open-RMF's task dispatcher - see room_goal_distributor.py for why this
+calls RMF instead of commanding a robot directly. Requires
+workcell_bringup/launch/rmf.launch.py (Open-RMF core + agv_fleet_adapter)
+to already be running - this node only ever publishes task requests, it
+does not know or care which robots exist.
 
-    ros2 launch office_distributor office_distributor.launch.py robots:=agv_1
-    ros2 launch office_distributor office_distributor.launch.py robots:=agv_1,agv_2
+    ros2 launch office_distributor office_distributor.launch.py
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
 def get_launch_arguments() -> list[DeclareLaunchArgument]:
     args = []
-    args.append(DeclareLaunchArgument("robots", default_value="agv_1", description="Comma-separated robot namespaces to dispatch goals to (e.g. agv_1,agv_2)"))
     args.append(DeclareLaunchArgument("use_sim_time", default_value="true", description="Use simulation (Gazebo) clock"))
-    args.append(DeclareLaunchArgument("map_frame", default_value="map", description="Frame goals are expressed in"))
-    args.append(DeclareLaunchArgument("min_dwell_sec", default_value="3.0", description="Minimum wait after reaching a room before the next goal"))
-    args.append(DeclareLaunchArgument("max_dwell_sec", default_value="8.0", description="Maximum wait after reaching a room before the next goal"))
-    args.append(DeclareLaunchArgument("random_seed", default_value="0", description="Seed for reproducible goal picking; 0 = unseeded"))
+    args.append(DeclareLaunchArgument("dispatch_period_sec", default_value="6.0", description="Seconds between submitted delivery tasks"))
+    args.append(DeclareLaunchArgument("random_seed", default_value="0", description="Seed for reproducible room picking; 0 = unseeded"))
     return args
 
 
-def launch_setup(context):
-    robots = [ns.strip() for ns in LaunchConfiguration("robots").perform(context).split(",") if ns.strip()]
-
+def generate_launch_description() -> LaunchDescription:
     node = Node(
         package="office_distributor",
         executable="room_goal_distributor",
@@ -32,16 +30,9 @@ def launch_setup(context):
         output="screen",
         emulate_tty=True,
         parameters=[{
-            "robots": robots,
             "use_sim_time": LaunchConfiguration("use_sim_time"),
-            "map_frame": LaunchConfiguration("map_frame"),
-            "min_dwell_sec": LaunchConfiguration("min_dwell_sec"),
-            "max_dwell_sec": LaunchConfiguration("max_dwell_sec"),
+            "dispatch_period_sec": LaunchConfiguration("dispatch_period_sec"),
             "random_seed": LaunchConfiguration("random_seed"),
         }],
     )
-    return [node]
-
-
-def generate_launch_description() -> LaunchDescription:
-    return LaunchDescription([*get_launch_arguments(), OpaqueFunction(function=launch_setup)])
+    return LaunchDescription([*get_launch_arguments(), node])

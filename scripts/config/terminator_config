@@ -15,38 +15,59 @@
       type = Terminal
       parent = window0
   [[GazeboLayout]]
+    # 3 columns x 2 rows = 6 panels: col1 = sim/nav bringup + teleop,
+    # col2 = office task distributor + rviz, col3 = Open-RMF core + task
+    # submission (see docs/open-rmf/).
     [[[window0]]]
       type = Window
       parent = ""
-    [[[split_horiz]]]
+    [[[split_horiz_1]]]
       type = HPaned
       parent = window0
-    [[[split_vert_left]]]
+    [[[split_vert_col1]]]
       type = VPaned
-      parent = split_horiz
+      parent = split_horiz_1
       order = 0
-    [[[split_vert_right]]]
+    [[[split_horiz_2]]]
+      type = HPaned
+      parent = split_horiz_1
+      order = 1
+    [[[split_vert_col2]]]
       type = VPaned
-      parent = split_horiz
+      parent = split_horiz_2
+      order = 0
+    [[[split_vert_col3]]]
+      type = VPaned
+      parent = split_horiz_2
       order = 1
     [[[terminal0]]]
       type = Terminal
-      parent = split_vert_left
+      parent = split_vert_col1
       order = 0
-      title = Camera Input & Params
+      title = Gazebo + Nav2 Bringup
     [[[terminal1]]]
       type = Terminal
-      parent = split_vert_left
+      parent = split_vert_col1
       order = 1
-      title = Camera Understortion
+      title = AGV Teleop
     [[[terminal2]]]
       type = Terminal
-      parent = split_vert_right
+      parent = split_vert_col2
       order = 0
-      title = Depth Logic
+      title = Office Task Distributor
     [[[terminal3]]]
       type = Terminal
-      parent = split_vert_right
+      parent = split_vert_col2
       order = 1
-      title = System Logs
+      title = RViz
+    [[[terminal4]]]
+      type = Terminal
+      parent = split_vert_col3
+      order = 0
+      title = Open-RMF Core + Fleet Adapter
+    [[[terminal5]]]
+      type = Terminal
+      parent = split_vert_col3
+      order = 1
+      title = RMF Task Submission
 [plugins]

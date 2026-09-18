@@ -14,57 +14,51 @@ source $WS/scripts/utils.sh
 
 open_terminator
 
+# Grid is 3 columns x 2 rows (see scripts/config/terminator_config's
+# GazeboLayout). T0 (sim/nav bringup), T4 (Open-RMF core + agv_fleet_
+# adapter), T2 (office_distributor - submits tasks to T4's dispatcher,
+# start after T4 or its early requests get dropped with nobody subscribed
+# yet), and T5 (Open-RMF visualization, also watching T4) all get a
+# command pasted. T1/T3 still get GLOBAL_CMD sourced via the broadcast
+# below, so they're ready to use, but nothing is pasted into them - paste
+# whatever you actually need there yourself (teleop, plain RViz, a one-off
+# task submission via `ros2 run agv_fleet_adapter submit_patrol_task`, ...).
+#
+#   [ T0 Gazebo+Nav2 ] [ T2 office_distributor ] [ T4 RMF core+adapter ]
+#   [ T1 (empty)      ] [ T3 (empty)            ] [ T5 RMF visualization ]
+#
+# Fleet is agv_1/agv_2/agv_3 (workcell.launch.py's robots_config), all
+# registered with Open-RMF (agv_fleet_adapter/config/fleet_config.yaml).
 
-# # 3. Προετοιμασία: Σιγουρεύουμε ότι είμαστε στο πάνω panel
+# Προετοιμασία: σιγουρεύουμε ότι είμαστε στο πάνω-αριστερό panel (T0),
+# όσα Alt+Left παραπάνω χρειαστούν είναι no-ops στο άκρο του grid.
 move_up
 move_left
+move_left
 
-# configuration broadcasting
+# configuration broadcasting - στέλνει το GLOBAL_CMD σε όλα τα 6 panels
 echo "Enabling broadcasting for all panels..."
 broadcast_on
-paste_cmd "$GLOBAL_CMD && clear" 
+paste_cmd "$GLOBAL_CMD && clear"
 enter
 broadcast_off
 
-# --- PANEL 1 (Πάνω): Camera Input Node ---
-echo "Configuring Panel 1..."
-# paste_cmd "bash scripts/shell.sh" && enter
-# sleep 5
-# paste_cmd 'ros2 launch workcell_bringup workcell.launch.py sim_gazebo:=true use_fake_hardware:=false'
-# enter
-
-
-move_right
-# paste_cmd "bash scripts/shell.sh" && enter
-# enter
-
-move_down
-# paste_cmd "bash scripts/shell.sh" && enter
-# paste_cmd "ros2 launch workcell_bringup rviz.launch.py rviz_namespace:=robot_1"
-
-move_left
-# paste_cmd "bash scripts/shell.sh" && enter
-# paste_cmd "ros2 run tf2_ros static_transform_publisher 0.0 0.0 0.0 0.0 0.0 0.0 1.0 map group_a/odom"
-
-
-# configuration broadcasting
-echo "Enabling broadcasting for all panels..."
-broadcast_on
-paste_cmd "$GLOBAL_CMD && clear" 
-enter
-broadcast_off
-
-move_up
+# --- T0 (πάνω-αριστερά): Gazebo + Nav2 bringup, όλο το fleet ---
+echo "Configuring T0: Gazebo + Nav2 bringup..."
 paste_cmd "source install/setup.bash && ros2 launch workcell_bringup workcell.launch.py sim_gazebo:=true use_fake_hardware:=false slam:=false map:=$WS/src/robots/agv/agv_navigation/maps/office_world.yaml"
 
+# --- T2 (πάνω-μέση): office_distributor ---
 move_right
-# planning_bringup (cuMotion, group_a arm planning) was legacy and has been removed
-paste_cmd 'source install/setup.bash && ros2 launch agv_navigation teleop.launch.py namespace:=agv_1'
+echo "Configuring T2: office_distributor..."
+paste_cmd 'source install/setup.bash && ros2 launch office_distributor office_distributor.launch.py'
 
+# --- T4 (πάνω-δεξιά): Open-RMF core + agv_fleet_adapter (agv_1/2/3) ---
+move_right
+echo "Configuring T4: Open-RMF core + fleet adapter..."
+paste_cmd 'source install/setup.bash && ros2 launch workcell_bringup rmf.launch.py'
+
+# --- T5 (κάτω-δεξιά): Open-RMF visualization (RViz + schedule/navgraph/fleet-state plugins) ---
+# Start after T4 - it's watching the same schedule/fleet state T4 publishes.
 move_down
-# workcell_bringup rviz.launch.py (group_a MoveIt RViz view) was legacy and has been removed
-# paste_cmd 'source install/setup.bash && ros2 launch workcell_bringup rviz.launch.py rviz_namespace:=robot_1'
-paste_cmd 'source install/setup.bash && ros2 launch office_distributor office_distributor.launch.py robots:=agv_1,agv_2,agv_3,agv_4,agv_5'
-
-move_left
-paste_cmd 'source install/setup.bash && ros2 run rviz2 rviz2 -d scripts/config/rviz_slam.rviz --ros-args -r /tf:=/agv_1/tf -r /tf_static:=/agv_1/tf_static -r /goal_pose:=/agv_1/goal_pose -r /initialpose:=/agv_1/initialpose -p use_sim_time:=True'
+echo "Configuring T5: Open-RMF visualization..."
+paste_cmd 'source install/setup.bash && ros2 launch rmf_visualization visualization.launch.xml map_name:=L1 use_sim_time:=true'

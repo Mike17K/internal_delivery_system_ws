@@ -1,20 +1,19 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>office_distributor</name>
+  <name>agv_fleet_adapter</name>
   <version>0.0.1</version>
-  <description>Periodically submits a "go deliver to a random office" task to Open-RMF's task dispatcher</description>
+  <description>Open-RMF fleet adapter for the AGV fleet - bridges RMF's abstract navigate/stop commands directly to each robot's own Nav2 NavigateToPose action, no REST/fleet-manager layer needed since we already own ROS 2 access to every robot</description>
   <maintainer email="kaipismike1@gmail.com">kaipis</maintainer>
   <license>Apache-2.0</license>
 
   <depend>rclpy</depend>
+  <depend>rmf_fleet_adapter_python</depend>
+  <depend>nav2_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>action_msgs</depend>
+  <!-- submit_patrol_task.py -->
   <depend>rmf_task_msgs</depend>
-  <depend>ament_index_python</depend>
-  <depend>launch</depend>
-  <depend>launch_ros</depend>
-
-  <!-- generate.py's output this node reads room locations from -->
-  <exec_depend>workcell_description</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
